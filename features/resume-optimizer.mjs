@@ -3,6 +3,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {ensureCanonicalResume,analyzeResume,getVisibleSections} from '../engine/lib/ai-resume.js';
 import {buildResumeHtmlDocument,getPaginatedDocumentModel} from '../adapters/resume-format.js';
 import {auditResumeContent} from './resume-integrity.mjs';
+import {recoverAtsSourceMappings} from './ats-source-recovery.mjs';
 const ontology=JSON.parse(fs.readFileSync(new URL('../ontology/aliases.json',import.meta.url),'utf8'));
 const fail=(message,status=400)=>{throw Object.assign(new Error(message),{status})};
 const key=s=>String(s||'').normalize('NFC').toLowerCase().replace(/\s+/g,' ').trim();
@@ -37,6 +38,8 @@ function proposals(resume,jd,before){
   // copy, rather than cancelling its wording gains with an obsolete one-page cap.
   if(id.startsWith('structure-bullets:')&&Number(next.documentSettings.resumeLength)===1){const layout=getPaginatedDocumentModel(next);if(!layout.fit&&layout.pageCount===2)next.documentSettings.resumeLength=2}
   const after=score(next,jd);out.push({id,label,description,beforeText:oldText,afterText:newText,beforeScore:before.score,afterScore:after.score,delta:after.score-before.score,next})}
+ const sourceMapped=recoverAtsSourceMappings(resume);
+ if(JSON.stringify(sourceMapped)!==JSON.stringify(resume))add('source-recovery','Restore verified contact, tools and role structure from upload','Uses literal information already present in the original file; removes only stray date-parenthesis fragments and relocates the existing tool inventory.',r=>{r.profile=sourceMapped.profile;r.sections=sourceMapped.sections},'Original imported field mappings','Source-verified contact, skills and role mappings');
  const skills=resume.sections.find(s=>s.type==='skills'&&s.visible!==false);
  if(skills){const values=[...(skills.content.items||[]),...(skills.content.categories||[]).flatMap(c=>c.items||[])],seen=new Set(),unique=values.filter(v=>{const k=key(v);if(seen.has(k))return false;seen.add(k);return true});
  if(unique.length!==values.length)add('dedupe-skills','Remove duplicate skills','Keeps existing skills once; no skills invented.',r=>{const s=r.sections.find(s=>s.id===skills.id),seen=new Set(),filter=a=>(a||[]).filter(v=>{const k=key(v);if(seen.has(k))return false;seen.add(k);return true});s.content.items=filter(s.content.items);for(const c of s.content.categories||[])c.items=filter(c.items)},values.join(', '),unique.join(', '))}

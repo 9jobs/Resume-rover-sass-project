@@ -92,7 +92,7 @@ export function atsReviewChecks(analysis){
 }
 
 export async function applyNextAtsIncrease(current,applySuggestion,{originalWord=false}={}){
- const suggestion=(current?.suggestions||[]).find(item=>Number(item.delta)>0&&/^(?:bullet:|structure-bullets:|two-pages$|skill:|summary$|dedupe(?::|-))/.test(item.id||'')&&(!originalWord||item.id.startsWith('bullet:')));
+ const suggestion=(current?.suggestions||[]).find(item=>Number(item.delta)>0&&/^(?:source-recovery$|bullet:|structure-bullets:|two-pages$|skill:|summary$|dedupe(?::|-))/.test(item.id||'')&&(!originalWord||item.id.startsWith('bullet:')));
  if(!suggestion)return null;
  const response=await applySuggestion(suggestion),next=response.result||response;
  if(!next.analysis||next.analysis.score<=current.analysis.score||next.hash===current.hash)throw Error('No verified score improvement was produced. The current resume is unchanged.');
