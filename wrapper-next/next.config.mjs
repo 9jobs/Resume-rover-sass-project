@@ -1,0 +1,3 @@
+import path from 'node:path';import {fileURLToPath} from 'node:url';
+const root=path.dirname(fileURLToPath(import.meta.url));
+export default {reactStrictMode:false,devIndicators:false,outputFileTracingRoot:path.resolve(root,'..'),experimental:{externalDir:true},webpack(config,{webpack}){config.resolve.alias['@clerk/nextjs$']=path.resolve(root,'../adapters/clerk-local.jsx');config.plugins.push(new webpack.NormalModuleReplacementPlugin(/ai-resume(?:\.js)?$/,resource=>{if(/[\\/]engine[\\/]components$/.test(resource.context))resource.request=path.resolve(root,'../adapters/resume-local.js')}));return config}};

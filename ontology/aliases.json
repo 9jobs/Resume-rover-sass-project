@@ -1,0 +1,131 @@
+{
+  "CRM": [
+    "customer relationship management"
+  ],
+  "P&L": [
+    "profit and loss"
+  ],
+  "SEO": [
+    "search engine optimisation",
+    "search engine optimization"
+  ],
+  "RN": [
+    "registered nurse"
+  ],
+  "BLS": [
+    "basic life support"
+  ],
+  "ACLS": [
+    "advanced cardiac life support"
+  ],
+  "Excel": [
+    "MS Excel",
+    "Microsoft Excel"
+  ],
+  "recruitment": [
+    "talent acquisition"
+  ],
+  "JavaScript": [
+    "JS"
+  ],
+  "PostgreSQL": [
+    "Postgres"
+  ],
+  "GAAP": [],
+  "IFRS": [],
+  "B2B": [],
+  "KPI": [],
+  "SAP": [],
+  "Tally": [],
+  "QuickBooks": [],
+  "lesson planning": [],
+  "curriculum development": [],
+  "stakeholder management": [],
+  "payroll processing": [],
+  "inventory management": [],
+  "Six Sigma": [],
+  "AutoCAD": [],
+  "HRIS": [],
+  "patient care": [],
+  "classroom management": [],
+  "financial reporting": [],
+  "customer service": [],
+  "sales": [],
+  "React": [],
+  "Python": [],
+  "SQL": [],
+  "Figma": [],
+  "Photoshop": [],
+  "litigation": [],
+  "food safety": [],
+  "welding": [],
+  "electrical": [],
+  "supply chain": [],
+  "budget management": [],
+  "Cypress": [],
+  "REST Assured": [
+    "RestAssured"
+  ],
+  "test automation": [
+    "automation testing",
+    "automate tests",
+    "automated testing"
+  ],
+  "manual testing": [],
+  "API testing": [
+    "API tests"
+  ],
+  "quality standards": [],
+  "TypeScript": [
+    "TS"
+  ],
+  "Selenium": [
+    "Selenium WebDriver"
+  ],
+  "Pytest": [
+    "pytest"
+  ],
+  "Postman": [],
+  "functional testing": [],
+  "regression testing": [],
+  "smoke testing": [],
+  "test cases": [
+    "test case",
+    "test case design"
+  ],
+  "test planning": [],
+  "test scenarios": [],
+  "bug tracking": [
+    "defect tracking"
+  ],
+  "Jira": [
+    "JIRA"
+  ],
+  "SDLC": [
+    "software development life cycle"
+  ],
+  "STLC": [
+    "software testing life cycle"
+  ],
+  "Agile": [
+    "Agile Scrum"
+  ],
+  "Power BI": [
+    "PowerBI"
+  ],
+  "Pandas": [],
+  "NumPy": [],
+  "Matplotlib": [],
+  "Git": [],
+  "GitHub": [],
+  "C++": [],
+  "Java": [],
+  "Jest": [],
+  "Playwright": [],
+  "JMeter": [],
+  "performance testing": [],
+  "acceptance testing": [
+    "UAT",
+    "user acceptance testing"
+  ]
+}

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "navy-right",
+    "name": "Navy Sidebar",
+    "family": "sidebar",
+    "font": "Calibri",
+    "url": "/template-previews/navy-right.html"
+  },
+  {
+    "id": "charcoal-left",
+    "name": "Charcoal Profile",
+    "family": "sidebar",
+    "font": "Arial",
+    "url": "/template-previews/charcoal-left.html"
+  },
+  {
+    "id": "editorial-blue",
+    "name": "Editorial Blue",
+    "family": "editorial",
+    "font": "Arial",
+    "url": "/template-previews/editorial-blue.html"
+  },
+  {
+    "id": "teal-left",
+    "name": "Teal Portfolio",
+    "family": "sidebar",
+    "font": "Calibri",
+    "url": "/template-previews/teal-left.html"
+  },
+  {
+    "id": "violet-right",
+    "name": "Violet Studio",
+    "family": "sidebar",
+    "font": "Arial",
+    "url": "/template-previews/violet-right.html"
+  },
+  {
+    "id": "sand-right",
+    "name": "Warm Editorial",
+    "family": "editorial",
+    "font": "Times New Roman",
+    "url": "/template-previews/sand-right.html"
+  },
+  {
+    "id": "slate-left",
+    "name": "Slate Professional",
+    "family": "sidebar",
+    "font": "Calibri",
+    "url": "/template-previews/slate-left.html"
+  },
+  {
+    "id": "sage-left",
+    "name": "Sage Minimal",
+    "family": "editorial",
+    "font": "Arial",
+    "url": "/template-previews/sage-left.html"
+  },
+  {
+    "id": "executive-serif",
+    "name": "Executive Serif",
+    "family": "single",
+    "font": "Times New Roman",
+    "url": "/template-previews/executive-serif.html"
+  },
+  {
+    "id": "modern-blue",
+    "name": "Modern Blue",
+    "family": "single",
+    "font": "Calibri",
+    "url": "/template-previews/modern-blue.html"
+  },
+  {
+    "id": "classic-ruled",
+    "name": "Classic Ruled",
+    "family": "single",
+    "font": "Times New Roman",
+    "url": "/template-previews/classic-ruled.html"
+  },
+  {
+    "id": "minimal-teal",
+    "name": "Minimal Teal",
+    "family": "single",
+    "font": "Arial",
+    "url": "/template-previews/minimal-teal.html"
+  }
+]

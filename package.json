@@ -1,0 +1,36 @@
+{
+  "name": "resume-saas-local",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:engine": "node --test engine/tests/*.test.js",
+    "integrity": "python verify-integrity.py",
+    "auth:inbox": "node scripts/auth-inbox.mjs"
+  },
+  "dependencies": {
+    "@clerk/nextjs": "6.39.3",
+    "@google/genai": "3.6.1",
+    "@libsql/client": "^0.18.0",
+    "@sparticuz/chromium": "^158.0.0",
+    "@xmldom/xmldom": "0.8.15",
+    "docx": "9.5.1",
+    "dotenv": "16.6.1",
+    "express": "4.22.1",
+    "fflate": "0.8.3",
+    "google-auth-library": "10.9.1",
+    "jspdf": "4.2.1",
+    "mammoth": "1.12.0",
+    "next": "15.5.15",
+    "openai": "4.104.0",
+    "pdfjs-dist": "6.2.108",
+    "pdfkit": "0.17.2",
+    "puppeteer-core": "^25.18.1",
+    "razorpay": "2.9.6",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "stripe": "17.7.0",
+    "zod": "3.25.76"
+  }
+}

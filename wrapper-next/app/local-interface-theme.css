@@ -1,0 +1,94 @@
+/* Local wrapper overrides only: screen UI, never resume paper or print. */
+@media screen {
+
+  :root {
+    --local-page: #F8FAFF;
+    --local-surface: #FFFFFF;
+    --local-heading: #0F1E3E;
+    --local-body: #1E293B;
+    --local-secondary: #64748B;
+    --local-border: #DBE5F1;
+    --local-mint: #EFF6FF;
+    --local-mint-hover: #DBEAFE;
+    --local-green: #2563EB;
+    --local-green-text: #2563EB;
+    --local-button: #2563EB;
+    --local-button-text: #FFFFFF;
+    --local-button-hover: #1D4ED8;
+    --local-error: #B42318;
+    --local-warning: #92400E;
+    --local-warning-bg: #FFFBEB;
+    --local-shadow: 0 8px 30px rgba(37, 99, 235, 0.24);
+    --local-shadow-raised: 0 12px 38px rgba(37, 99, 235, 0.24);
+    --local-focus-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+    --local-backdrop: rgba(15, 30, 62, 0.48);
+    --local-primary-gradient: linear-gradient(135deg, #3B82F6, #2563EB);
+    --local-primary-hover-gradient: linear-gradient(135deg, #2563EB, #1D4ED8);
+    --local-success: #047857;
+  }
+
+  body, body:has(.old-builder), .rover-dashboard { background: var(--local-page) !important; color: var(--local-heading) !important; }
+  .topbar, .rover-sidebar, .old-builder .workspace-headline { background: var(--local-surface) !important; border-color: var(--local-border) !important; }
+  .topbar .brand, .rover-sidebar .brand, .workspace-headline h1 { color: var(--local-heading) !important; }
+  .brand span { background: var(--local-mint) !important; color: var(--local-green-text) !important; box-shadow: inset 0 0 0 1px var(--local-green) !important; }
+  .old-builder :is(.form-section,.choice-card,.ats-hero-score,.font-control,.item-box,.diff-card,.fit-suggestion,.preview-wrap,.suggestions,.ats-list) {
+    background: var(--local-surface) !important; border-color: var(--local-border) !important; box-shadow: var(--local-shadow) !important;
+  }
+  .old-editor, .preview-head, .suggestions, .workspace-headline, .rover-sidebar { color: var(--local-body) !important; }
+  :is(.old-editor,.preview-head,.suggestions,.workspace-headline,.rover-sidebar) :is(h1,h2,h3,h4,strong,label,.section-title-input) { color: var(--local-heading) !important; }
+  :is(.old-editor,.preview-head,.suggestions,.workspace-headline,.rover-sidebar) :is(p,small,.muted-small,.field,.score-copy) { color: var(--local-body) !important; }
+  .old-builder :is(.eyebrow,.sidebar-group-title,.score-copy > span,.ats-hero-score > span) { color: var(--local-secondary) !important; }
+  .old-builder :is(.section-title h3,.jd-editor-card h3,.section-library-card h3)::before { background: var(--local-mint) !important; color: var(--local-green-text) !important; }
+  :is(.topbar,.old-builder) :is(.primary-btn,.side-link.jd-highlight-link) {
+    background: var(--local-button) !important; border-color: var(--local-button) !important; color: var(--local-button-text) !important; box-shadow: var(--local-shadow) !important;
+  }
+  :is(.topbar,.old-builder) :is(.primary-btn,.side-link.jd-highlight-link):hover:not(:disabled) { background: var(--local-button-hover) !important; box-shadow: var(--local-shadow-raised) !important; filter: none !important; }
+  :is(.topbar,.old-builder) :is(.ghost-btn,.mini-btn,.remove,.text-btn,.popup-close) { background: var(--local-surface) !important; color: var(--local-heading) !important; border-color: var(--local-border) !important; }
+  :is(.topbar,.old-builder) :is(.ghost-btn,.mini-btn,.remove,.text-btn,.popup-close):hover { background: var(--local-mint-hover) !important; color: var(--local-green-text) !important; border-color: var(--local-green) !important; }
+  .old-builder .side-link { background: transparent !important; color: var(--local-body) !important; }
+  .old-builder .side-link:hover { background: var(--local-mint-hover) !important; color: var(--local-green-text) !important; border-color: var(--local-border) !important; }
+  .old-builder .side-link.active, .old-builder .mobile-tabs .active { background: var(--local-mint) !important; color: var(--local-green-text) !important; border-color: var(--local-border) !important; }
+  .old-builder :is(.sidebar-version-group,.version-badge,.plan-pill,.save-pill,.preview-version-pill,.preview-version-banner) { background: var(--local-mint-hover) !important; color: var(--local-green-text) !important; border-color: var(--local-border) !important; }
+  .old-builder :is(.old-editor,.modal-card,.popup-card) :is(input,textarea,select) {
+    background: var(--local-surface) !important; color: var(--local-heading) !important; border-color: var(--local-border) !important;
+  }
+  .old-builder :is(.old-editor,.modal-card,.popup-card) :is(input,textarea)::placeholder { color: var(--local-secondary) !important; opacity: 1 !important; }
+  .old-builder :is(.old-editor,.modal-card,.popup-card) :is(input,textarea,select):focus { border-color: var(--local-green) !important; box-shadow: var(--local-focus-shadow) !important; outline-color: var(--local-green-text) !important; }
+  :is(.topbar,.old-editor,.rover-sidebar,.preview-head,.modal-card,.popup-card,.mobile-tabs) :is(button,a,input,textarea,select):focus-visible { outline-color: var(--local-green-text) !important; }
+  .old-builder .score-ring { --ring-color: var(--local-green) !important; background: conic-gradient(from -90deg, var(--ring-color) var(--score), var(--local-border) 0) !important; }
+  .old-builder .score-ring b { background: var(--local-surface) !important; color: var(--local-heading) !important; }
+  .old-builder .ats-breakdown p { background: var(--local-page) !important; border-color: var(--local-border) !important; }
+  .old-builder .ats-breakdown strong { color: var(--local-heading) !important; }
+  .old-builder .ats-breakdown meter { background: var(--local-border) !important; accent-color: var(--local-green) !important; }
+  .old-builder .ats-breakdown meter::-webkit-meter-bar { background: var(--local-border) !important; }
+  .old-builder .ats-breakdown meter::-webkit-meter-optimum-value { background: var(--local-green) !important; }
+  .old-builder .ats-breakdown meter::-moz-meter-bar { background: var(--local-green) !important; }
+  .old-builder .modal-backdrop, .old-builder .modal-backdrop.resume-import-backdrop { background: var(--local-backdrop) !important; }
+  .old-builder :is(.modal-card,.popup-card,.toast) { background: var(--local-surface) !important; color: var(--local-body) !important; border-color: var(--local-border) !important; box-shadow: var(--local-shadow-raised) !important; }
+  .old-builder :is(.modal-card,.popup-card) :is(h2,h3,label,.field,.import-field-label) { color: var(--local-heading) !important; }
+  .old-builder :is(.modal-card,.popup-card) :is(p,.muted-small) { color: var(--local-body) !important; }
+  .old-builder :is(.import-heading-icon,.import-upload-icon,.jd-keyword-chip,.jd-score-banner,.jd-score-box,.jd-option-card,.upload-status) { background: var(--local-mint-hover) !important; color: var(--local-green-text) !important; border-color: var(--local-border) !important; box-shadow: var(--local-shadow) !important; }
+  .old-builder :is(.import-field-label svg,.resume-import-card .eyebrow,.jd-score-box strong,.jd-score-box span) { color: var(--local-green-text) !important; }
+  .old-builder .resume-import-card::before { background: var(--local-mint-hover) !important; border-color: var(--local-border) !important; box-shadow: var(--local-shadow) !important; }
+  .rover-dashboard.old-builder .resume-import-backdrop .resume-import-card .drop { background: var(--local-mint-hover) !important; color: var(--local-green-text) !important; border-color: var(--local-green) !important; box-shadow: var(--local-shadow) !important; }
+  .old-builder .resume-import-card .drop:hover { background: var(--local-mint) !important; }
+  .old-builder :is(.danger,.error,.import-error) { color: var(--local-error) !important; }
+  .old-builder .success { color: var(--local-green-text) !important; }
+  .old-builder :is(.notice,.warning,.fit-warning-card) { color: var(--local-warning) !important; background: var(--local-warning-bg) !important; border-color: var(--local-border) !important; }
+  .old-builder button:disabled { background: var(--local-border) !important; color: var(--local-body) !important; border-color: var(--local-border) !important; }
+}
+
+/* Reference palette for editor controls only, never resume paper. */
+@media screen {
+body,body:has(.old-builder),.rover-dashboard{background:radial-gradient(ellipse at 85% 0%,rgba(37, 99, 235, 0.14),transparent 48%),var(--local-page)!important}
+:is(.topbar,.old-builder) :is(.primary-btn,.side-link.jd-highlight-link){background:var(--local-primary-gradient)!important;border-color:var(--local-green)!important;color:var(--local-button-text)!important}
+:is(.topbar,.old-builder) :is(.primary-btn,.side-link.jd-highlight-link):hover:not(:disabled){background:var(--local-primary-hover-gradient)!important}
+.old-builder .success{color:var(--local-success)!important}
+}
+
+/* Resume documents stay black regardless of application or AI highlight theme. */
+.resume-paper, .resume-paper *, .resume-paper a, .resume-paper mark { color: #000000 !important; -webkit-text-fill-color: #000000 !important; }
+
+/* Match the preview to the locally exported document typography. */
+.resume-paper, .resume-paper * { font-family: Arial, sans-serif !important; }
+.resume-paper .resume-paragraph, .resume-paper .resume-bullet-text { text-align: justify !important; text-align-last: left; }

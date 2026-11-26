@@ -1,0 +1,14 @@
+services:
+  ats-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "127.0.0.1:8877:8877"
+    environment:
+      ATS_INTERNAL_TOKEN: ${ATS_INTERNAL_TOKEN:?Set a local internal token}
+      ATS_DATABASE_URL: sqlite:////data/ats-profiles.sqlite
+    volumes:
+      - ats-profile-data:/data
+volumes:
+  ats-profile-data:

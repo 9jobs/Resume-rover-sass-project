@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/lib/ai-resume": ["adapters/resume-local.js"],
+      "@/*": ["engine/*"]
+    }
+  }
+}
