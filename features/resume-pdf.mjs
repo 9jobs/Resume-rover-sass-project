@@ -4,6 +4,7 @@ import os from 'node:os';
 import {pathToFileURL} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
+import {inlineResumePdfFonts} from './resume-pdf-fonts.mjs';
 const run=promisify(execFile);
 let busy=false;
 async function renderHostedPdf(html){
@@ -17,6 +18,7 @@ async function renderHostedPdf(html){
    void (request.url().startsWith('data:')?request.continue():request.abort()).catch(()=>{});
   });
   await page.setContent(html,{waitUntil:'load',timeout:15000});
+  await page.evaluate(() => document.fonts.ready);
   return Buffer.from(await page.pdf({preferCSSPageSize:true,printBackground:true,timeout:15000}));
  }catch(error){
   console.error('HOSTED_PDF_RENDER',error.code||error.name);
@@ -26,6 +28,7 @@ async function renderHostedPdf(html){
  }
 }
 export async function renderLocalPdf(html){
+ html=inlineResumePdfFonts(html);
  if(process.env.VERCEL==='1')return renderHostedPdf(html);
  if(busy)throw Object.assign(new Error('Another local PDF is rendering. Try again shortly.'),{status:409});
  const candidates=[process.env.LOCAL_CHROME_PATH,'C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].filter(Boolean);

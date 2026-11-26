@@ -291,7 +291,7 @@ export async function handleWorkspaceRequest(req,res){
 
  res.writeHead(302,{Location:'/'});res.end();
 
- }catch(e){console.error(e.code||'LOCAL_REQUEST_ERROR');if(!res.headersSent)json(res,e.status||500,{error:e.status?e.message:'Unable to complete request',...(e.code?{code:e.code}:{})});else res.end()}
+ }catch(e){console.error(e.code||'LOCAL_REQUEST_ERROR',{name:e.name,status:e.status||500,message:e.message});if(!res.headersSent)json(res,e.status||500,{error:e.status?e.message:'Unable to complete request',...(e.code?{code:e.code}:{})});else res.end()}
 
 }
 

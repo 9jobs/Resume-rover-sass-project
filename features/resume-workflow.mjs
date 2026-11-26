@@ -4,6 +4,7 @@ import mammoth from 'mammoth';
 import {createDefaultWorkingResume,preserveImportedSourceCoverage,parseImportedResume,canonicalToPlainText,canonicalToLegacy,analyzeResume,buildTxtExport} from '../engine/lib/ai-resume.js';
 import {pdfTextItemsToLines} from '../engine/lib/resume-import.js';
 import {renderLocalPdf} from './resume-pdf.mjs';
+import {inlineResumePdfFonts} from './resume-pdf-fonts.mjs';
 import {auditResumeContent,auditResumeText} from './resume-integrity.mjs';
 import {validateDocxBytes} from '../engine/lib/zip-utils.js';
 
@@ -42,7 +43,7 @@ export function createResumeWorkflow(store){
  function review(body){
   const {resume}=prepareWorkflowResume(body.resume);
   const jd=text(body.jd||'',15000);
-  const html=buildResumeHtmlDocument(resume);
+  const html=inlineResumePdfFonts(buildResumeHtmlDocument(resume));
   return {resume,analysis:analyzeResume(resume,jd),pagination:getPaginatedDocumentModel(resume),html,integrity:auditResumeContent(resume,html),provider:'existing-local-engine'};
  }
  function suggest(body){

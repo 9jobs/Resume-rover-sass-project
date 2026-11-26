@@ -2983,3 +2983,5 @@ html:has(#home.reference-hero-home){scroll-behavior:smooth}
   #workflow-demo .workflow-full-resume-action { flex-wrap: wrap; }
   #workflow-demo .ref-overlay { position: relative; inset: auto; margin: 16px 0 0 auto; }
 }
+
+.wf-font-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.wf-font-choices button[aria-pressed="true"]{border-color:#2563EB;background:#EFF6FF;color:#1E3A8A}

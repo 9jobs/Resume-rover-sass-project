@@ -37,7 +37,9 @@ test('cross-organisation source, parent, job and downloads remain inaccessible',
 test('existing scores remain unchanged and preview uses the local export layout',()=>{
  const review=workflow.review({resume,jd:job.data.jd});
  assert.deepEqual(review.analysis,analyzeResume(resume,job.data.jd));
- assert.equal(review.html,buildResumeHtmlDocument(resume));
+ assert.equal(review.html.replace(/<style data-resume-export-fonts>[\s\S]*?<\/style>/,''),buildResumeHtmlDocument(resume));
+ assert(review.html.includes('data-resume-export-fonts'));
+ for(const font of ['Arial','Times New Roman','Calibri'])assert(review.html.includes(`font-family:"${font}"`));
  assert.equal(review.pagination.fit,true);
  assert(review.analysis.breakdown.every(c=>Number.isFinite(c.points)));
 });
