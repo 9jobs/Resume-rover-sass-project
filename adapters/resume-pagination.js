@@ -11,8 +11,9 @@ function paginate(items,capacity){
  for(let index=0;index<items.length;index++){
   const item=items[index],next=items[index+1],lineHeight=item.size*item.lineHeight;
   const reserve=['heading','entry-title'].includes(item.type)&&next?Math.min(next.height,next.size*next.lineHeight*2+next.gap):0;
-  if(used+item.height+reserve>capacity&&pages.at(-1).length){pages.push([]);used=0}
-  if(item.height>capacity&&['paragraph','bullet'].includes(item.type)){
+  const splittable=item.height>capacity&&['paragraph','bullet'].includes(item.type);
+  if(!splittable&&used+item.height+reserve>capacity&&pages.at(-1).length){pages.push([]);used=0}
+  if(splittable){
    let offset=0;
    while(offset<item.lines.length){
     let room=Math.floor((capacity-used-item.gap)/lineHeight);
@@ -59,7 +60,9 @@ export function fitResumePages(resume,base,font,cleanBullet){
   });
   blocks.forEach((b,i)=>{if(b.type==='heading'&&i){blocks[i-1].gap+=cfg.sectionGap;blocks[i-1].height+=cfg.sectionGap}});
   let pages=paginate(blocks,capacity);
-  if(target===2&&pages.length<=2){const balanced=balanceTwo(pages,capacity);if(balanced)pages=balanced}
+  // Preserve natural full-page flow when content already spans two pages.
+  // Redistributing those blocks early leaves a large empty first-page tail.
+  if(target===2&&pages.length===1){const balanced=balanceTwo(pages,capacity);if(balanced)pages=balanced}
   const oversized=pages.some(p=>p.reduce((n,b)=>n+b.height,0)>capacity+.5);
   const exact=pages.length===target&&!oversized;
   chosen={pages,pageCount:pages.length,typography:cfg,usable,capacity,fit:exact,appliedPreset:name,targetPages:target,adjusted:name!==requested};

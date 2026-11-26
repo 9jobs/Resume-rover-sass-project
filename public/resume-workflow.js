@@ -1,5 +1,5 @@
 import {normalizeSourceListMarkers} from './source-list-markers.js';
-import {structureDatedSourceEntries,sourceSkillsHeading} from './source-entry-structure.js';
+import {structureDatedSourceEntries,sourceSkillsHeading,repairSourceEntryHeader} from './source-entry-structure.js';
 export const RESUME_DESIGNS=[{"id":"navy-right","name":"Navy Sidebar","family":"sidebar","side":"right","color":"0B2B49","accent":"0B2B49","font":"Calibri"},{"id":"charcoal-left","name":"Charcoal Profile","family":"sidebar","side":"left","color":"34383D","accent":"34383D","font":"Arial"},{"id":"editorial-blue","name":"Editorial Blue","family":"editorial","side":"left","color":"F1F5F9","accent":"174EA6","font":"Arial","summarySide":true},{"id":"teal-left","name":"Teal Portfolio","family":"sidebar","side":"left","color":"115E59","accent":"115E59","font":"Calibri"},{"id":"violet-right","name":"Violet Studio","family":"sidebar","side":"right","color":"4C1D95","accent":"6D28D9","font":"Arial"},{"id":"sand-right","name":"Warm Editorial","family":"editorial","side":"right","color":"F4EDE3","accent":"7C4A2D","font":"Times New Roman","summarySide":true},{"id":"slate-left","name":"Slate Professional","family":"sidebar","side":"left","color":"1E3A5F","accent":"1E3A5F","font":"Calibri"},{"id":"sage-left","name":"Sage Minimal","family":"editorial","side":"left","color":"E8F0EA","accent":"35624A","font":"Arial"},{"id":"executive-serif","name":"Executive Serif","family":"single","accent":"26344A","font":"Times New Roman","rule":true},{"id":"modern-blue","name":"Modern Blue","family":"single","accent":"2563EB","font":"Calibri","topbar":true},{"id":"classic-ruled","name":"Classic Ruled","family":"single","accent":"111827","font":"Times New Roman","rule":true,"center":true},{"id":"minimal-teal","name":"Minimal Teal","family":"single","accent":"0F766E","font":"Arial","topbar":true}];
 export function resumeImprovementPlan(resume,analysis){
  const bullets=guidedBulletChoices(resume),words=t=>t.trim().split(/\s+/).length;
@@ -150,11 +150,8 @@ export function recoverImportedSkills(input,{restoreSource=false}={}){
  for(const s of resume.sections||[])if(['experience','projects'].includes(s.type)&&!s.content.entries?.length&&s.content.paragraphs?.length){const lines=s.content.paragraphs.join('\n').split('\n'),entries=(s.type==='projects'&&structureSourceProjects(lines))||structureDatedSourceEntries(lines,s.type);if(entries)s.content={entries,paragraphs:[],bullets:[],blocks:[]}}
  // Some legacy imports placed the dated heading AND its prose into a title.
  // Repair only that malformed entry, using its current text rather than old source.
- for(const s of resume.sections||[])if(['experience','projects'].includes(s.type)&&s.content.entries?.length){s.content.entries=s.content.entries.flatMap(entry=>{
-  if((entry.title||'').length<=180)return [entry];
-  const entries=structureDatedSourceEntries([entry.title,entry.subtitle||'',entry.description||'',...(entry.bullets||[])],s.type);
-  if(!entries)return [entry];entries[0].id=entry.id;return entries;
- })}
+ for(const s of resume.sections||[])if(['experience','projects'].includes(s.type)&&s.content.entries?.length)s.content.entries=s.content.entries.flatMap(entry=>repairSourceEntryHeader(entry,s.type));
+ resume.sections=resume.sections.filter(s=>!['references','referees'].includes(s.type)&&!/^(?:(?:professional|personal|employment|character)\s+)?(?:references?|referees?)(?:\s*(?:and|&)\s*(?:references?|referees?))?\s*:?$/i.test(s.title?.trim()||''));
  // Import diagnostics stay in the draft/source, never in the candidate's document.
  for(const section of resume.sections||[])if(/^imported source recovery$/i.test(section.title?.trim()||''))section.visible=false;
  if(/^professional\s+summary\s*:?$/i.test(resume.profile?.location?.trim()||''))resume.profile.location='';
@@ -338,6 +335,7 @@ export function createResumeWorkflow({api,getState,getOwner,onSaved,onCover,onAd
   }
   onePageSource=!doc&&draft?.onePageSource?recoverImportedSkills(draft.onePageSource):null;onePageApplied=!doc&&draft?.onePageApplied?recoverImportedSkills(draft.onePageApplied):null;conciseChanges=doc?null:draft?.conciseChanges||null;
   savedId=doc?.id||draft?.savedId||'';savedUpdated=doc?.updated||draft?.savedUpdated||'';step=doc?1:draft?.step||0;readyOwner=owner;readyUser=user;pagination=null;analysis=null;preview='';suggestion=null;message=doc?'Opened a saved version. Saving creates another version.':draft?'Your draft is ready. Continue where you left off.':'Let’s build your resume, one step at a time.';revision++;
+  if(draft&&!doc&&JSON.stringify(seed)!==JSON.stringify(resume)){clearTimeout(autosaveTimer);try{localStorage.setItem(key(),JSON.stringify(capture()))}catch{}}
  }
  async function mount(container){
   host=container;

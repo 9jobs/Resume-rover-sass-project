@@ -8,6 +8,16 @@ import {zipSync,strToU8} from 'fflate';
 export function cleanBullet(value){return String(value??'').replace(/^(?:\s*(?:[•●▪◦‣⁃\uF0B7]|[-*–]\s))+/u,'').trim()}
 export function ensureCanonicalResume(value){
  const resume=engine.ensureCanonicalResume(value);
+ // Canonical arrays already define independent bullets. The legacy text importer
+ // must not join short Australian-English achievements (for example "Analysed").
+ for(const [index,section] of resume.sections.entries()){
+  const source=value?.sections?.find(s=>s.id===section.id)||value?.sections?.[index];if(!source)continue;
+  if(Array.isArray(source.content?.bullets))section.content.bullets=source.content.bullets.map(cleanBullet).filter(Boolean);
+  for(const [i,entry] of (section.content.entries||[]).entries()){
+   const original=source.content?.entries?.find(e=>e.id===entry.id)||source.content?.entries?.[i];
+   if(Array.isArray(original?.bullets))entry.bullets=original.bullets.map(cleanBullet).filter(Boolean);
+  }
+ }
  function visit(node){if(!node||typeof node!=='object')return;for(const [key,value] of Object.entries(node)){if(key==='rawImport')continue;if(key==='bullets'&&Array.isArray(value))node[key]=value.map(cleanBullet).filter(Boolean);else if(key==='blocks'&&Array.isArray(value)){value.forEach(block=>{if(block.type==='bullet'||block.bullet===true)block.text=cleanBullet(block.text);visit(block)})}else visit(value)}}
  visit(resume);return resume;
 }
@@ -16,7 +26,7 @@ const fontFor=value=>RESUME_FONTS.includes(value?.documentSettings?.fontFamily)?
 const mm=72/25.4;
 const xml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 // Preserve explicit source list rows in standard and designed exports.
-function preserveSourceSkillBullets(resume,model){let section=null,rendered=false;for(const page of model.pages){const output=[];for(const block of page){if(block.type==='heading'){section=resume.sections.find(s=>s.title?.toUpperCase()===block.text.toUpperCase());rendered=false}if(section?.type==='skills'&&section.layout==='source-bullets'&&block.type!=='heading'&&block.type!=='spacer'){if(!rendered){output.push(...section.content.items.map(text=>({...block,type:'bullet',text:cleanBullet(text)})));rendered=true}}else output.push(block)}page.splice(0,page.length,...output)}}
+function preserveSourceSkillBullets(resume,model){let section=null,rendered=false,entryIndex=-1,entry=null;for(const page of model.pages){const output=[];for(const block of page){if(block.type==='heading'){section=resume.sections.find(s=>s.title?.toUpperCase()===block.text.toUpperCase());rendered=false;entryIndex=-1;entry=null}if(block.type==='entry-title'){const index=section?.content.entries?.findIndex((e,i)=>i>entryIndex&&[e.title,e.dateRange].filter(Boolean).join(' || ')===block.text);entry=index>=0?section.content.entries[index]:null;if(entry)entryIndex=index;rendered=false}if(section?.type==='skills'&&section.layout==='source-bullets'&&block.type!=='heading'&&block.type!=='spacer'){if(!rendered){output.push(...section.content.items.map(text=>({...block,type:'bullet',text:cleanBullet(text)})));rendered=true}}else if(entry&&block.type==='bullet'){if(!rendered){output.push(...entry.bullets.map(text=>({...block,text})));rendered=true}}else output.push(block)}page.splice(0,page.length,...output)}}
 export function getPaginatedDocumentModel(value){const resume=ensureCanonicalResume(value),standard=structuredClone(resume);standard.documentSettings={...standard.documentSettings,template:'default'};standard.template='default';const base=engine.getPaginatedDocumentModel(standard),design=resumeDesign(resume);preserveSourceSkillBullets(resume,base);return design?buildDesignedModel(resume,base,design):fitResumePages(resume,base,fontFor(resume),cleanBullet)}
 
 function content(item){if(item.type==='contact'&&item.parts?.length)return item.parts.map(contactHtml).join(' | ');if(item.type==='entry-title'){const [left,right]=item.text.split(' || ');return '<span>'+xml([left,item.metaLine].filter(Boolean).join(' | '))+'</span><span class="date">'+xml(right||'')+'</span>'}return item.type==='bullet'?'<span class="bullet-copy">'+xml(item.text)+'</span>':xml(item.text)}
