@@ -1,4 +1,5 @@
 import {normalizeSourceListMarkers} from './source-list-markers.js';
+import {structureDatedSourceEntries,sourceSkillsHeading} from './source-entry-structure.js';
 export const RESUME_DESIGNS=[{"id":"navy-right","name":"Navy Sidebar","family":"sidebar","side":"right","color":"0B2B49","accent":"0B2B49","font":"Calibri"},{"id":"charcoal-left","name":"Charcoal Profile","family":"sidebar","side":"left","color":"34383D","accent":"34383D","font":"Arial"},{"id":"editorial-blue","name":"Editorial Blue","family":"editorial","side":"left","color":"F1F5F9","accent":"174EA6","font":"Arial","summarySide":true},{"id":"teal-left","name":"Teal Portfolio","family":"sidebar","side":"left","color":"115E59","accent":"115E59","font":"Calibri"},{"id":"violet-right","name":"Violet Studio","family":"sidebar","side":"right","color":"4C1D95","accent":"6D28D9","font":"Arial"},{"id":"sand-right","name":"Warm Editorial","family":"editorial","side":"right","color":"F4EDE3","accent":"7C4A2D","font":"Times New Roman","summarySide":true},{"id":"slate-left","name":"Slate Professional","family":"sidebar","side":"left","color":"1E3A5F","accent":"1E3A5F","font":"Calibri"},{"id":"sage-left","name":"Sage Minimal","family":"editorial","side":"left","color":"E8F0EA","accent":"35624A","font":"Arial"},{"id":"executive-serif","name":"Executive Serif","family":"single","accent":"26344A","font":"Times New Roman","rule":true},{"id":"modern-blue","name":"Modern Blue","family":"single","accent":"2563EB","font":"Calibri","topbar":true},{"id":"classic-ruled","name":"Classic Ruled","family":"single","accent":"111827","font":"Times New Roman","rule":true,"center":true},{"id":"minimal-teal","name":"Minimal Teal","family":"single","accent":"0F766E","font":"Arial","topbar":true}];
 export function resumeImprovementPlan(resume,analysis){
  const bullets=guidedBulletChoices(resume),words=t=>t.trim().split(/\s+/).length;
@@ -80,7 +81,7 @@ export function structureSourceProjects(sourceLines){
 }
 export function restoreImportedSourceContent(input){
  const resume=structuredClone(input),raw=normalizeSourceListMarkers(resume.rawImport?.rawText);if(!raw)return resume;
- const headings={summary:/^(?:professional\s+|career\s+)?(?:summary|profile|objective)$/i,skills:/^(?:(?:technical|professional|core|key|additional)\s+)?(?:skills|competencies|technical expertise)$/i,experience:/^(?:(?:professional|work|employment|career)\s+)?(?:experience|history)$/i,education:/^(?:education|qualifications|academic background)$/i,projects:/^(?:(?:personal|academic|key)\s+)?projects?$/i,certifications:/^(?:(?:licenses?|licences?)\s+(?:and|&)\s+certifications?|certifications?|licenses?|licences?|training)$/i,achievements:/^(?:key\s+)?achievements?$/i,awards:/^awards$/i,interests:/^interests$/i,languages:/^languages$/i,references:/^references$/i};
+ const headings={summary:/^(?:professional\s+|career\s+)?(?:summary|profile|objective)$/i,skills:sourceSkillsHeading,experience:/^(?:(?:professional|work|employment|career)\s+)?(?:experience|history)$/i,education:/^(?:education|qualifications|academic background)$/i,projects:/^(?:(?:personal|academic|key|industry)\s+)?projects?$/i,certifications:/^(?:(?:licenses?|licences?)\s+(?:and|&)\s+certifications?|certifications?|licenses?|licences?|training)$/i,achievements:/^(?:key\s+)?achievements?$/i,awards:/^awards$/i,interests:/^interests$/i,languages:/^languages$/i,references:/^references$/i};
  const segments={};let active='';
  for(const rawLine of raw.replace(/\r/g,'').split('\n')){const line=rawLine.trim(),plain=line.replace(/^[•●▪*-]\s*/u,'').replace(/\s*:\s*$/,'');const type=Object.keys(headings).find(k=>headings[k].test(plain));if(type){active=type;segments[type]||=[];continue}if(active&&line&&!/^page\s+\d+(?:\s+of\s+\d+)?$/i.test(line))segments[active].push(line)}
  const norm=value=>String(value||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
@@ -89,6 +90,7 @@ export function restoreImportedSourceContent(input){
  for(const type of ['experience','projects']){
   const lines=segments[type];if(!lines?.length)continue;const s=section(type),old=s.content.entries||[],entries=[];let current=null,lastBullet=false,unassigned=[];
   if(type==='projects'){const projects=structureSourceProjects(lines);if(projects){s.content={entries:projects,paragraphs:[],bullets:[],blocks:[]};s.visible=true;continue}}
+  const datedEntries=structureDatedSourceEntries(lines,type);if(datedEntries){s.content={entries:datedEntries,paragraphs:[],bullets:[],blocks:[]};s.visible=true;continue}
   for(const line of lines){
    const bullet=/^[•●▪*-]\s+/u.test(line),text=line.replace(/^[•●▪*-]\s+/u,'');
    const matches=!bullet?old.filter(e=>norm(e.title)&&norm(line).startsWith(norm(e.title))&&(line.includes('|')||norm(line)===norm(e.title))):[];
@@ -129,7 +131,7 @@ export function recoverImportedSkills(input,{restoreSource=false}={}){
  const knownSkills=new Set((resume.sections||[]).filter(s=>s.type==='skills').flatMap(s=>[...(s.content.items||[]),...(s.content.categories||[]).flatMap(c=>c.items||[])]).flatMap(text=>String(text).split(/[,;|\n]/)).map(skillKey).filter(Boolean));
  const cleanProjectText=value=>{
   if(typeof value!=='string')return value;
-  const boundary=/(?:^|[.!?]\s+|\n\s*)(?:technical\s+)?skills?\s*:?\s+([^\n]+(?:\n[^\n]+)*)$/i.exec(value);
+  const boundary=/(?:^|[.!?]\s+|\n\s*|\s+(?=SKILLS\s*(?:&|and)\s*COMPETENCIES))(?:technical\s+)?skills?(?:\s*(?:&|and)\s*competencies)?\s*:?\s+([^\n]+(?:\n[^\n]+)*)$/i.exec(value);
   if(!boundary)return value;
   const items=boundary[1].split(/[,;|\n]/).map(skillKey).filter(Boolean);
   if(items.length<3||new Set(items.filter(item=>knownSkills.has(item))).size<3)return value;
@@ -140,12 +142,19 @@ export function recoverImportedSkills(input,{restoreSource=false}={}){
   for(const field of ['paragraphs','bullets'])if(Array.isArray(section.content[field]))section.content[field]=section.content[field].map(cleanProjectText).filter(Boolean);
   for(const entry of section.content.entries||[]){
    if(Array.isArray(entry.bullets))entry.bullets=entry.bullets.map(cleanProjectText).filter(Boolean);
-   for(const field of ['description','subtitle'])if(typeof entry[field]==='string')entry[field]=cleanProjectText(entry[field]);
+   for(const field of ['title','description','subtitle'])if(typeof entry[field]==='string')entry[field]=cleanProjectText(entry[field]);
   }
  }
  // Repair a previously imported project paragraph from its own current text,
  // without restoring old source over a user's subsequent edits.
- for(const s of resume.sections||[])if(s.type==='projects'&&!s.content.entries?.length&&s.content.paragraphs?.length){const projects=structureSourceProjects(s.content.paragraphs.join('\n').split('\n'));if(projects)s.content={entries:projects,paragraphs:[],bullets:[],blocks:[]}}
+ for(const s of resume.sections||[])if(['experience','projects'].includes(s.type)&&!s.content.entries?.length&&s.content.paragraphs?.length){const lines=s.content.paragraphs.join('\n').split('\n'),entries=(s.type==='projects'&&structureSourceProjects(lines))||structureDatedSourceEntries(lines,s.type);if(entries)s.content={entries,paragraphs:[],bullets:[],blocks:[]}}
+ // Some legacy imports placed the dated heading AND its prose into a title.
+ // Repair only that malformed entry, using its current text rather than old source.
+ for(const s of resume.sections||[])if(['experience','projects'].includes(s.type)&&s.content.entries?.length){s.content.entries=s.content.entries.flatMap(entry=>{
+  if((entry.title||'').length<=180)return [entry];
+  const entries=structureDatedSourceEntries([entry.title,entry.subtitle||'',entry.description||'',...(entry.bullets||[])],s.type);
+  if(!entries)return [entry];entries[0].id=entry.id;return entries;
+ })}
  // Import diagnostics stay in the draft/source, never in the candidate's document.
  for(const section of resume.sections||[])if(/^imported source recovery$/i.test(section.title?.trim()||''))section.visible=false;
  if(/^professional\s+summary\s*:?$/i.test(resume.profile?.location?.trim()||''))resume.profile.location='';
@@ -153,7 +162,7 @@ export function recoverImportedSkills(input,{restoreSource=false}={}){
  let active=false,buffer=[];
  const finish=()=>{if(buffer.length)found.push(...split(buffer.join(buffer.some(x=>/[,;|]/.test(x))?' ':'; ')));buffer=[]};
  for(const raw of source.replace(/\r/g,'').split('\n')){
-  const line=raw.trim(),heading=line.match(/^(?:(?:technical|professional|core|key|additional|soft|hard)\s+)?(?:skills?|competencies|technical expertise)(?:\s*:\s*(.*))?$/i);
+  const line=raw.trim(),heading=line.match(/^(?:(?:technical|professional|core|key|additional|soft|hard)\s+)?(?:skills?(?:\s*(?:&|and)\s*competencies)?|competencies|technical expertise)(?:\s*:\s*(.*))?$/i);
   if(heading){finish();active=true;if(heading[1])buffer.push(heading[1]);continue}
   if(active&&/^(?:(?:professional|work|employment|career|project)\s+)?(?:experience|history|summary|profile|objective|projects?|education|qualifications|certifications?|licenses?|licences?|awards|achievements|references?|interests|languages)\s*:?$/i.test(line)){finish();active=false}
   if(!active||!line)continue;
@@ -511,24 +520,20 @@ function render(){
   const owner=getOwner(),user=getState().user.id,current=()=>version===revision&&owner===getOwner()&&user===getState().user.id;
   let r=await api('/api/resume-workflow/review','POST',{resume:structuredClone(resume),jd:meta.jd||''});
   if(!current())return null;
-  if(onePageSource&&r.pagination.fit&&Number(resume.documentSettings.resumeLength)===1&&resume.documentSettings.designId){
-   const full=mergeConciseEdits(onePageSource,onePageApplied,resume),design=RESUME_DESIGNS.find(d=>d.id===resume.documentSettings.designId);
-   for(const types of [['experience','projects'],...(design?.summarySide?[]:[['summary']])]){
-    const candidate=structuredClone(resume);for(const s of candidate.sections){const original=full.sections.find(o=>o.id===s.id);if(original&&types.includes(s.type))s.content=structuredClone(original.content)}
-    if(JSON.stringify(candidate.sections)===JSON.stringify(resume.sections))continue;
-    const checked=await api('/api/resume-workflow/review','POST',{resume:candidate,jd:meta.jd||''});if(!current())return null;
-    if(checked.pagination.fit&&checked.integrity.complete){resume=checked.resume;r=checked;onePageSource=full;onePageApplied=structuredClone(resume);const bullets=value=>value.sections.flatMap(s=>(s.content.entries||[]).flatMap(e=>e.bullets||[]));if(conciseChanges){conciseChanges.omittedBullets=Math.max(0,bullets(full).length-bullets(resume).length);conciseChanges.shortenedSummaries=full.sections.filter(s=>s.type==='summary'&&s.content.text!==resume.sections.find(x=>x.id===s.id)?.content.text).length}try{localStorage.setItem(key(),JSON.stringify(capture()))}catch{}}
-   }
+  // Restore the full retained source while preserving edits made to its concise copy.
+  if(onePageSource){
+   resume=recoverImportedSkills(mergeConciseEdits(onePageSource,onePageApplied,resume));
+   onePageSource=null;onePageApplied=null;conciseChanges=null;
+   r=await api('/api/resume-workflow/review','POST',{resume:structuredClone(resume),jd:meta.jd||''});
+   if(!current())return null;
+   clearTimeout(autosaveTimer);try{localStorage.setItem(key(),JSON.stringify(capture()))}catch{}
   }
+  // Try additional page space, never silently omit or truncate candidate content.
   if(Number(resume.documentSettings.resumeLength)===1&&!r.pagination.fit){
-   notify('Shortening extra content to fit one readable page…');
-   const source=onePageSource?mergeConciseEdits(onePageSource,onePageApplied,resume):structuredClone(resume);
-   const short=await fitConciseEdition(source,meta.jd||'',candidate=>api('/api/resume-workflow/review','POST',{resume:candidate,jd:meta.jd||''}),current);
-   if(!short||!current())return null;
-   if(short.result.pagination.fit&&short.result.integrity.complete){
-    onePageSource=source;resume=short.result.resume;onePageApplied=structuredClone(resume);conciseChanges=short.changes;r=short.result;
-    try{localStorage.setItem(key(),JSON.stringify(capture()))}catch{}
-   }else notify('Content is still too long after shortening. Keep essential qualifications and manually review extra content.');
+   const candidate=structuredClone(resume);candidate.documentSettings.resumeLength=2;
+   const full=await api('/api/resume-workflow/review','POST',{resume:candidate,jd:meta.jd||''});
+   if(!current())return null;
+   if(full.pagination.fit&&full.integrity.complete){resume=full.resume;r=full;clearTimeout(autosaveTimer);try{localStorage.setItem(key(),JSON.stringify(capture()))}catch{}}
   }
   const checked=await api('/api/ats-optimizer/analyse','POST',{resume:r.resume,jd:[r.resume.targetRole,meta.jd||''].filter(Boolean).join('\n'),owner});if(!current())return null;liveAts=checked;meta.skippedKeywords=(meta.skippedKeywords||[]).filter(term=>checked.questions.some(q=>q.term===term));
   return r;
