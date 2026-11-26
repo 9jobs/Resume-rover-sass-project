@@ -103,12 +103,18 @@ export function createResumeWorkflow(store){
    const bytes=await renderLocalPdf(html);
    const {getDocument}=await import(/* webpackIgnore: true */ 'pdfjs-dist/legacy/build/pdf.mjs');
    const task=getDocument({data:new Uint8Array(bytes),isEvalSupported:false,disableFontFace:true,useSystemFonts:true});
-   const pdf=await task.promise;let extracted='';const actualPages=pdf.numPages;
+   const pdf=await task.promise;let extracted='',streamText='';const actualPages=pdf.numPages;
    try{
     if(pdf.numPages>model.allowedPages)fail('PDF exceeds the selected page target. Shorten the draft or choose two pages before export.',422);
-    for(let page=1;page<=pdf.numPages;page++)extracted+=pdfTextItemsToLines((await(await pdf.getPage(page)).getTextContent()).items)+'\n';
+    for(let page=1;page<=pdf.numPages;page++){
+     const {items}=await(await pdf.getPage(page)).getTextContent();
+     extracted+=pdfTextItemsToLines(items)+'\n';
+     // A right-aligned date can interrupt a wrapped heading in geometric
+     // reading order. Also verify against the PDF's actual drawing order.
+     streamText+=items.map(item=>item.str||'').join(' ')+'\n';
+    }
    }finally{await task.destroy()}
-   if(!auditResumeText(resume,extracted).complete)fail('PDF text verification found missing content. Choose DOCX or review the document before retrying.',422);
+   if(!auditResumeText(resume,extracted+'\n'+streamText).complete)fail('PDF text verification found missing content. Choose DOCX or review the document before retrying.',422);
    return {type:'application/pdf',bytes,pages:actualPages};
   }
   fail('Choose PDF, DOCX or TXT');

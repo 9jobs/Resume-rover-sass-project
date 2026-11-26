@@ -2,11 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createStore} from '../store.mjs';
 import {createResumeWorkflow} from '../features/resume-workflow.mjs';
-import {auditResumeContent} from '../features/resume-integrity.mjs';
+import {auditResumeContent,auditResumeText} from '../features/resume-integrity.mjs';
 import {fictionalResume} from '../deep-verification/fixtures.mjs';
 const store=createStore(':memory:'),workflow=createResumeWorkflow(store);
 const user=store.signup({name:'Export Audit Fictional',email:'exports@audit.invalid',password:'FictionalAudit!2026'});
 store.plan(user,{plan:'Pro'});
+
+test('PDF audit accepts a wrapped field in drawing order and still rejects omitted words',()=>{
+ const resume=fictionalResume('fresher','default');
+ const html=auditResumeContent(resume);
+ assert(html.complete);
+ const text=workflow.review({resume}).resume;
+ text.sections=[{id:'education-audit',type:'education',title:'Education',visible:true,order:0,content:{entries:[{title:'Diploma of Information Technology',organization:'Example International College',dateRange:'2014 – 2016',bullets:[]}]}}];
+ const contact=Object.values(text.profile).filter(v=>typeof v==='string').join(' ');
+ const geometry=contact+' Diploma of Information 2014 – 2016 Technology Example International College';
+ const stream=contact+' Diploma of Information Technology Example International College 2014 – 2016';
+ assert.equal(auditResumeText(text,geometry).complete,false);
+ assert.equal(auditResumeText(text,geometry+'\n'+stream).complete,true);
+ assert.equal(auditResumeText(text,(geometry+'\n'+stream).replaceAll('College','')).complete,false);
+});
 test('both existing formats preserve short fictional resumes in preview',()=>{
  for(const format of ['default','harshibar'])for(const kind of ['fresher','experienced','unicode']){
   const resume=fictionalResume(kind,format);
