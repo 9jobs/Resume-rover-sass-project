@@ -3,7 +3,7 @@ import {createAtsWorkbench} from '/ats-workbench.js';
 import {createResumeWorkflow,RESUME_DESIGNS} from '/resume-workflow.js';
 import {mountTemplateShowcase} from '/template-showcase.js';
 import {getMarketingPage} from '/marketing-pages.js';
-const $=s=>document.querySelector(s),root=$('#app');let state=null,page=({'#resume-builder':'Resume Builder','#ats-score':'ATS Optimizer','#cover-letter':'Cover Letter','#interview-prep':'Interview Prep','#documents':'Documents','#profile':'Profile','#jobs':'Jobs','#account':'Account'}[location.hash]||'Dashboard'),scope='',authMode='login',editingJob=null,editorContext=null;
+const $=s=>document.querySelector(s),root=$('#app');let state=null,page=({'#rover-upload':'Rover Workspace','#rover-workspace':'Rover Workspace','#resume-builder':'Resume Builder','#ats-score':'ATS Optimizer','#cover-letter':'Cover Letter','#interview-prep':'Interview Prep','#documents':'Documents','#profile':'Profile','#jobs':'Jobs','#account':'Account'}[location.hash]||'Dashboard'),scope='',authMode='login',editingJob=null,editorContext=null;
 
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -72,6 +72,7 @@ function authShowcase() {
   </section>`;
 }
 function auth() {
+  releaseRoverFrame();
   const signup = authMode === 'signup', forgot = authMode === 'forgot', reset = authMode === 'reset';
   const normal = !forgot && !reset;
   const title = reset ? 'Set a new password' : forgot ? 'Forgot password?' : signup ? 'Create your account' : 'Welcome back';
@@ -106,8 +107,9 @@ function auth() {
 }
 
 
-const workspaceLabels={'ATS Optimizer':'ATS score & improve',Dashboard:'Dashboard',Profile:'Career profile',Jobs:'Job tracker',Documents:'My resumes','Resume Builder':'Resume builder','Cover Letter':'Cover letters','Interview Prep':'Interview prep',Clients:'Clients','Review Queue':'Review queue',Team:'Team',Account:'Account'};
+const workspaceLabels={'ATS Optimizer':'ATS score & improve',Dashboard:'Dashboard',Profile:'Career profile',Jobs:'Job tracker',Documents:'My resumes','Resume Builder':'Resume builder','Rover Workspace':'Create Resume','Cover Letter':'Cover letters','Interview Prep':'Interview prep',Clients:'Clients','Review Queue':'Review queue',Team:'Team',Account:'Account'};
 function workspaceIcon(name){
+ if(name==='Rover Workspace')name='Documents';
  const paths={Dashboard:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',Profile:'M4 21v-2a8 8 0 0 1 16 0v2 M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0',Jobs:'M3 8h18v13H3z M8 8V5h8v3 M3 12l9 3 9-3',Documents:'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h4','Resume Builder':'m4 16 12-12 4 4L8 20l-5 1z M13 7l4 4','Cover Letter':'M3 5h18v14H3z m1 1 8 7 8-7','Interview Prep':'M3 4h18v13H9l-6 4z M7 9h10 M7 13h6',Account:'M4 6h16v14H4z M8 3v6m8-6v6 M8 14h8'};
  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(paths[name]||paths.Profile)+'"/></svg>';
 }
@@ -119,13 +121,16 @@ function resumeScoreButton(d){return '<button class="secondary resume-score-link
 function resumeActions(d){return '<div class="resume-row-actions"><details class="resume-action-menu"><summary aria-label="Actions for '+esc(d.data.title)+'" title="Resume actions"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></summary><div class="resume-action-list">'+button('guided-open','Edit',d.id)+button('resume-optimise','Improve ATS',d.id)+button('resume-rename','Rename',d.id)+button('resume-duplicate','Duplicate',d.id)+button('resume-delete','Delete',d.id,'resume-delete secondary')+'</div></details></div>'}
 function resumeDialog(action,doc){return new Promise(resolve=>{const dialog=document.createElement('dialog');dialog.className='resume-dialog';dialog.innerHTML='<form method="dialog"><h2>'+ (action==='delete'?'Delete resume?':'Rename resume')+'</h2><p>'+esc(doc.data.title)+'</p>'+(action==='delete'?'<p>This removes the resume from My resumes and frees its saved-resume slot. Linked cover letters and interview history stay available. You can undo this deletion.</p>':'<label>Resume name<input name="title" required maxlength="200" value="'+esc(doc.data.title)+'"></label>')+'<div class="actions"><button value="cancel" type="button">Cancel</button><button value="confirm" class="'+(action==='delete'?'resume-delete':'')+'">'+(action==='delete'?'Delete resume':'Save name')+'</button></div></form>';document.body.appendChild(dialog);dialog.querySelector('[value=cancel]').onclick=()=>dialog.close('cancel');dialog.addEventListener('close',()=>{const value=dialog.returnValue==='confirm'?(action==='delete'?true:dialog.querySelector('input').value.trim()):null;dialog.remove();resolve(value)},{once:true});dialog.showModal();if(action==='rename'){dialog.querySelector('input').focus();dialog.querySelector('input').select()}})}
 function render(){
+ releaseRoverFrame();
  interviewVoice.beforeRender();
  if(!state)return auth();
  const team=['owner','staff'].includes(state.user.role)&&state.organisation.plan==='Team';
- const nav=['Dashboard','Documents','Resume Builder','ATS Optimizer','Cover Letter','Interview Prep','Profile','Jobs',...(team?['Clients','Review Queue','Team']:[]),'Account'];
- const descriptions={'ATS Optimizer':'Review your score, apply supported improvements and see what changed.',Dashboard:'Create a resume, pick up a draft, or prepare your next application.',Profile:'Keep your experience and skills ready to use.',Jobs:'Keep each opportunity, deadline and resume together.',Documents:'Your saved resumes and previous versions.','Resume Builder':'Add your details, then review and download your resume.','Cover Letter':'Turn a selected resume into a tailored cover letter.','Interview Prep':'Practise for your next interview with AI voice coaching.',Clients:'Choose a candidate workspace.',Team:'Manage your team and candidate assignments.','Review Queue':'Review documents and share feedback.',Account:'Your account, plan and usage.'};
- root.innerHTML=`<div class="layout workspace-app ${page==='Interview Prep'?'interview-workspace':''}"><aside class="sidebar"><a class="brand" href="/#home"><span class="mark">${workspaceIcon('Documents')}</span><span>AI Resume Maker<small>Your career workspace</small></span></a><nav aria-label="Workspace navigation">${nav.map(n=>`<button class="nav ${page===n?'active':''}" data-page="${n}" ${page===n?'aria-current="page"':''}>${workspaceIcon(n)}<span>${workspaceLabels[n]}</span></button>`).join('')}</nav><div class="foot"><div class="workspace-user"><span class="workspace-avatar">${esc((state.user.name||'G')[0].toUpperCase())}</span><div><strong>${esc(state.user.name)}</strong><small>${esc(state.organisation.plan)} plan · local demo</small></div></div>${button('logout','Sign out','','quiet')}</div></aside><main class="main"><div class="topline"><span>${esc(state.organisation.name)}</span>${team?`<label>Candidate workspace<select id="scope" class="scope">${options([[state.user.id,'My workspace'],...state.members.filter(m=>m.role==='candidate').map(m=>[m.id,m.name])],scope)}</select></label>`:`<button class="quiet workspace-plan" data-page="Account">${esc(state.organisation.plan)} plan</button>`}</div><div class="heading"><div><h1>${esc(workspaceLabels[page]||page)}</h1><p>${esc(descriptions[page]||'Edit your resume and save a version when ready.')}</p></div>${!['Resume Builder','Editor','Dashboard','Interview Prep'].includes(page)?button('guided-new','＋ Create resume','',''):page==='Resume Builder'?`<button class="quiet" data-page="Documents">← My resumes</button>`:''}</div><div id="view">${lastDeletedResume?.owner===scope?'<div class="notice resume-undo" role="status">Resume removed. <button class="secondary" data-action="resume-restore" data-id="'+esc(lastDeletedResume.id)+'">Undo delete</button></div>':''}${content(team)}</div></main></div>`;
+ if(page==='Rover Workspace'&&!authCapabilities.roverWorkspace)page='Dashboard';
+ const nav=['Dashboard','Documents','Resume Builder',...(authCapabilities.roverWorkspace?['Rover Workspace']:[]),'ATS Optimizer','Cover Letter','Interview Prep',...(team?['Clients','Review Queue','Team']:[])];
+ const descriptions={'ATS Optimizer':'Review your score, apply supported improvements and see what changed.',Dashboard:'Create a resume, pick up a draft, or prepare your next application.',Profile:'Keep your experience and skills ready to use.',Jobs:'Keep each opportunity, deadline and resume together.',Documents:'Your saved resumes and previous versions.','Resume Builder':'Add your details, then review and download your resume.','Rover Workspace':'Create or upload a resume and review your document.','Cover Letter':'Turn a selected resume into a tailored cover letter.','Interview Prep':'Practise for your next interview with AI voice coaching.',Clients:'Choose a candidate workspace.',Team:'Manage your team and candidate assignments.','Review Queue':'Review documents and share feedback.',Account:'Your account, plan and usage.'};
+ root.innerHTML=`<div class="layout workspace-app ${page==='Interview Prep'?'interview-workspace':page==='Rover Workspace'?'rover-workspace-page':''}"><aside class="sidebar"><a class="brand" href="/#home"><span class="mark">${workspaceIcon('Documents')}</span><span>AI Resume Maker<small>Your career workspace</small></span></a><nav aria-label="Workspace navigation">${nav.map(n=>`<button class="nav ${page===n&&!(n==='Rover Workspace'&&location.hash==='#rover-upload')?'active':''}" data-page="${n}" ${page===n&&!(n==='Rover Workspace'&&location.hash==='#rover-upload')?'aria-current="page"':''}>${workspaceIcon(n)}<span>${workspaceLabels[n]}</span></button>${n==='Rover Workspace'?'<button type="button" class="nav '+(page==='Rover Workspace'&&location.hash==='#rover-upload'?'active':'')+'" '+(page==='Rover Workspace'&&location.hash==='#rover-upload'?'aria-current="page"':'')+' data-action="rover-upload">'+workspaceIcon(n)+'<span>Upload Resume</span></button>':''}`).join('')}</nav><div class="foot"><div class="workspace-user"><span class="workspace-avatar">${esc((state.user.name||'G')[0].toUpperCase())}</span><div><strong>${esc(state.user.name)}</strong><small>${esc(state.organisation.plan)} plan · local demo</small></div></div>${button('logout','Sign out','','quiet')}</div></aside><main class="main"><div class="topline"><span>${esc(state.organisation.name)}</span>${team?`<label>Candidate workspace<select id="scope" class="scope">${options([[state.user.id,'My workspace'],...state.members.filter(m=>m.role==='candidate').map(m=>[m.id,m.name])],scope)}</select></label>`:`<button class="quiet workspace-plan" data-page="Account">${esc(state.organisation.plan)} plan</button>`}</div><div class="heading"><div><h1>${esc(page==='Rover Workspace'&&location.hash==='#rover-upload'?'Upload Resume':workspaceLabels[page]||page)}</h1><p>${esc(descriptions[page]||'Edit your resume and save a version when ready.')}</p></div>${!['Resume Builder','Rover Workspace','Editor','Dashboard','Interview Prep'].includes(page)?button('guided-new','＋ Create resume','',''):page==='Resume Builder'?`<button class="quiet" data-page="Documents">← My resumes</button>`:''}</div><div id="view">${lastDeletedResume?.owner===scope?'<div class="notice resume-undo" role="status">Resume removed. <button class="secondary" data-action="resume-restore" data-id="'+esc(lastDeletedResume.id)+'">Undo delete</button></div>':''}${content(team)}</div></main></div>`;
  fitLetterPreview();
+ if(page==='Rover Workspace')stopRoverFrame=mountRoverFrame($('#rover-editor'));
  if(page==='Resume Builder')void workflow.mount(document.getElementById('resume-workflow-host'));
  if(page==='Interview Prep')interviewVoice.mount();
  if(page==='ATS Optimizer')void atsWorkbench.mount(document.getElementById('ats-workbench-host'));
@@ -133,7 +138,7 @@ function render(){
 function dashboardContent(jobs,docs,profiles){
  const reminders=jobs.filter(j=>j.data.followUp&&j.data.followUp<=new Date().toLocaleDateString('en-CA')&&!['Closed','Offer'].includes(j.data.stage));
  const templatePicker='<label class="dashboard-template-picker" for="dashboard-resume-template">Resume template<select id="dashboard-resume-template"><optgroup label="Original formats"><option value="standard">Original — Standard</option><option value="compact">Original — Compact</option><option value="classic">Original — Classic</option></optgroup><optgroup label="More layouts">'+RESUME_DESIGNS.map(d=>'<option value="'+esc(d.id)+'">'+esc(d.name)+'</option>').join('')+'</optgroup></select><small>Select a layout, then fill the same resume fields.</small></label>';
- return `<section class="dashboard-start"><div><p class="dashboard-eyebrow">Your next step</p><h2>${docs.length?'Keep your next application moving.':'Your first resume starts here.'}</h2><p>${docs.length?'Create a tailored version or continue the draft you were working on.':'Add your details or import an existing resume. We’ll guide you through each section.'}</p>${templatePicker}<div class="actions">${button('guided-new','＋ Create resume','','')}${hasResumeDraft()?button('guided-continue','Continue draft','','secondary'):''}</div></div><div class="dashboard-mini-document" aria-hidden="true"><span>YOUR RESUME</span><b></b><i></i><i></i><strong></strong><i></i><i></i><i></i></div></section>
+ return `<section class="dashboard-start"><div><p class="dashboard-eyebrow">Your next step</p><h2>${docs.length?'Keep your next application moving.':'Your first resume starts here.'}</h2><p>${docs.length?'Create a tailored version or continue the draft you were working on.':'Add your details or import an existing resume. We’ll guide you through each section.'}</p>${templatePicker}<div class="actions">${button('guided-new','＋ Create resume','','')}${hasResumeDraft()?button('guided-continue','Continue draft','','secondary'):''}${authCapabilities.roverWorkspace?'<button type="button" class="secondary" data-page="Rover Workspace">Open Rover Workspace</button>':''}</div></div><div class="dashboard-mini-document" aria-hidden="true"><span>YOUR RESUME</span><b></b><i></i><i></i><strong></strong><i></i><i></i><i></i></div></section>
  <div class="dashboard-tools">${[['Documents','My resumes',docs.length+' saved versions'],['ATS Optimizer','ATS score & improve','Review and apply supported improvements'],['Cover Letter','Write a cover letter','Use one of your saved resumes'],['Interview Prep','Prepare for an interview','Practise with your resume and job description']].map(([key,title,hint])=>`<button class="dashboard-tool secondary" data-page="${key}">${workspaceIcon(key)}<span><strong>${title}</strong><small>${hint}</small></span><b aria-hidden="true">→</b></button>`).join('')}</div>
  <div class="dashboard-columns"><section class="dashboard-panel"><div class="dashboard-panel-title"><h2>Recent resumes</h2><button class="quiet" data-page="Documents">View all →</button></div>${docs.length?docs.slice(0,3).map(d=>`<article class="dashboard-resume"><span class="dashboard-file">${workspaceIcon('Documents')}</span><div><h3>${esc(d.data.title)}</h3><p>${esc(d.data.canonical?.targetRole||'Resume version')} · ${esc(new Date(d.updated).toLocaleDateString())}</p></div><div class="resume-row-actions dashboard-score-actions">${resumeScoreButton(d)}${resumeActions(d)}</div></article>`).join(''):`<div class="dashboard-empty">${workspaceIcon('Documents')}<h3>No saved resumes yet</h3><p>Start a resume above. Your saved versions will appear here.</p></div>`}</section></div>
 `;
@@ -162,6 +167,7 @@ function content(team){const jobs=own(state.jobs),docs=own(state.documents),prof
 
  if(page==='Account')return `<div class="card"><h2>${esc(state.user.name)}</h2><p>${esc(state.user.email)} · ${esc(state.user.role)}</p>${button('logout','Sign out')}</div><div class="notice">Billing simulation only. No card details, payment gateway or charges. Cancellation immediately returns to Free. Existing documents remain accessible when over the new allowance.</div><div class="grid">${['Free','Pro','Team'].map((p,i)=>`<section class="card"><h2>${p}</h2><p>${p==='Pro'?'Unlimited organisation documents<br>Unlimited demo drafts':`${[3,0,300][i]} organisation documents<br>${[5,0,1000][i]} lifetime demo drafts`}${p==='Team'?'<br>Staff, clients and document review':''}</p>${state.user.role==='owner'?button('plan',p===state.organisation.plan?'Current plan':'Simulate '+p,p,p===state.organisation.plan?'quiet':''):''}</section>`).join('')}</div><div class="card"><h2>Current allowance · ${state.organisation.plan}</h2><p>${state.allowance.documents === null ? 'Unlimited documents' : `${state.allowance.documents} documents remaining`} · ${state.allowance.drafts === null ? 'Unlimited demo drafts' : `${state.allowance.drafts} demo drafts remaining`}</p><p>Allowances are shared across the organisation. Stored data survives restarts.</p>${state.user.role==='owner'?button('cancel','Simulate cancellation'):''}</div>`;
 
+ if(page==='Rover Workspace')return `<iframe id="rover-editor" title="${location.hash==='#rover-upload'?'Upload Resume':'Create Resume'}" src="${esc(roverContext().url + (location.hash==='#rover-upload'?'&entry=upload':''))}"></iframe>`;
  if(page==='Editor')return `<div class="notice">The resume editor below is an unchanged local copy. Any Gemini/AI labels inside it are inherited UI text: all live services are blocked here. Import preserves raw source; tailoring analyses facts without rewriting them. Use Print to PDF if native PDF conversion is unavailable.</div><div class="actions">${field('snapshot-title','New resume version title','Resume · '+new Date().toLocaleDateString())}${button('snapshot','Save editor as new version','','')}${button('documents','Back to Documents')}</div><iframe id="editor" title="Original resume editor" src="${esc(editorContext?.url||'')}"></iframe>`;
 
  return empty('Choose a section from the navigation.');}
@@ -175,11 +181,44 @@ function docCard(d,reviewer=false){
  return '<article class="card resume-library-card"><header class="resume-card-header"><div class="resume-card-name"><span class="resume-card-icon">'+workspaceIcon('Documents')+'</span><div><h3>'+esc(d.data.title)+'</h3><p>'+esc(d.data.canonical?.targetRole||'Resume draft')+'</p></div></div><div class="resume-card-header-actions"><span class="pill">'+esc(d.data.review)+'</span>'+resumeActions(d)+'</div></header><div class="resume-card-meta"><span>'+esc(person(d.owner))+'</span><span>Updated <time datetime="'+esc(d.updated)+'">'+esc(new Date(d.updated).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}))+'</time></span></div><div class="resume-card-overview"><p class="resume-card-label">Resume overview</p><p>'+esc(snippet||'Add your career details to complete this resume.')+'</p></div><footer class="resume-card-footer">'+resumeScoreButton(d)+downloads+'</footer><details class="resume-card-options" '+(reviewer?'open':'')+'><summary>Review & advanced options</summary><div class="resume-card-secondary">'+button('edit-document','Advanced editor',d.id)+button('submit-review','Submit for review',d.id)+'<a class="button quiet" href="/api/records/document/'+esc(d.id)+'/download?format=json">JSON backup</a></div>'+d.data.comments.map(c=>'<div class="comment"><strong>'+esc(c.author)+'</strong><p>'+esc(c.text)+'</p></div>').join('')+'<form class="review" data-id="'+esc(d.id)+'">'+field('comment','Add a comment')+(reviewer?select('action','Review decision',[['','Comment only'],'Approved','Changes requested'],''):'')+'<button class="secondary">Save '+(reviewer?'review':'comment')+'</button></form></details></article>';
 }
 
+let stopRoverFrame;
+function releaseRoverFrame(){
+ stopRoverFrame?.();
+ stopRoverFrame=undefined;
+}
+function roverContext(){
+ const key=`resume:${state.user.id}:${scope}:rover-draft:`;
+ return {key,owner:scope,url:'/original-resume-editor?localScope='+encodeURIComponent(key)};
+}
+function mountRoverFrame(frame){
+ const controller=new AbortController(),{signal}=controller;
+ let observer,content;
+ const alignOverlays=()=>{
+  if(!content)return;
+  const bounds=frame.getBoundingClientRect();
+  content.style.setProperty('--rover-visible-top',Math.max(0,-bounds.top)+'px');
+  content.style.setProperty('--rover-visible-bottom',Math.max(0,bounds.bottom-window.innerHeight)+'px');
+ };
+ frame.addEventListener('load',()=>{
+  observer?.disconnect();
+  content=frame.contentDocument?.querySelector('.rover-workspace-embed');
+  if(!content)return;
+  observer=new ResizeObserver(()=>{
+   frame.style.height=(Math.ceil(content.getBoundingClientRect().height)+1)+'px';
+   alignOverlays();
+  });
+  observer.observe(content);
+ },{signal});
+ window.addEventListener('scroll',alignOverlays,{signal,passive:true});
+ window.addEventListener('resize',alignOverlays,{signal});
+ return ()=>{controller.abort();observer?.disconnect()};
+}
+
 async function openEditor(id){const doc=id?state.documents.find(d=>d.id===id):null;const owner=doc?.owner||scope;const seed=await api('/api/engine-seed?owner='+encodeURIComponent(owner)+(id?'&document='+id:''));const key=`resume:${state.user.id}:${owner}:${id||'draft'}:`;localStorage.setItem(key+'ai_resume_maker_v2',JSON.stringify(seed.resume));localStorage.setItem(key+'saas_seed',JSON.stringify(seed.resume));editorContext={key,owner,url:'/career-cockpit?localScope='+encodeURIComponent(key)};page='Editor';render()}
 
 root.addEventListener('change',e=>{if(e.target.id==='scope'){scope=e.target.value;workflow.reset();if(page==='Resume Builder')page='Documents';editingJob=null;careerReset();if(page==='Editor')page='Documents';render()}});
 
-root.addEventListener('click',async e=>{const el=e.target.closest('button');const actionMenu=el?.closest('.resume-action-menu');if(actionMenu){actionMenu.open=false;actionMenu.querySelector('summary').focus()}if(!el)return;if(el.dataset.page){page=el.dataset.page;const route={'Dashboard':'resume-dashboard','ATS Optimizer':'ats-score','Resume Builder':'resume-builder','Cover Letter':'cover-letter','Interview Prep':'interview-prep','Documents':'documents','Profile':'profile','Jobs':'jobs','Account':'account'}[page];if(route)history.replaceState(null,'','#'+route);render();return}const a=el.dataset.action,id=el.dataset.id;if(!a)return;el.disabled=true;try{
+root.addEventListener('click',async e=>{const el=e.target.closest('button');const actionMenu=el?.closest('.resume-action-menu');if(actionMenu){actionMenu.open=false;actionMenu.querySelector('summary').focus()}if(!el)return;if(el.dataset.page){page=el.dataset.page;const route={'Dashboard':'resume-dashboard','ATS Optimizer':'ats-score','Resume Builder':'resume-builder','Rover Workspace':'rover-workspace','Cover Letter':'cover-letter','Interview Prep':'interview-prep','Documents':'documents','Profile':'profile','Jobs':'jobs','Account':'account'}[page];if(route)history.replaceState(null,'','#'+route);render();return}const a=el.dataset.action,id=el.dataset.id;if(a==='rover-upload'){page='Rover Workspace';history.replaceState(null,'','#rover-upload');render();return}if(!a)return;el.disabled=true;try{
 
  if(['resume-rename','resume-duplicate','resume-delete'].includes(a)){
   const doc=state.documents.find(d=>d.id===id);if(!doc)throw new Error('Resume not found. Refresh your workspace.');
@@ -208,14 +247,15 @@ root.addEventListener('click',async e=>{const el=e.target.closest('button');cons
  if(a==='client'){scope=id;page='Dashboard';render();return}
 
  if(a==='snapshot'){
-  const context=editorContext,title=$('[name="snapshot-title"]').value,userId=state.user.id;
+  const fromRover=page==='Rover Workspace',context=fromRover?roverContext():editorContext,title=$('[name="snapshot-title"]').value,userId=state.user.id;
   const fresh=await api('/api/state');
   if(fresh.user.id!==userId)throw new Error('Account changed. Reload before saving.');
   const canonical=JSON.parse(localStorage.getItem(context.key+'ai_resume_maker_v2')||'null');
   if(!canonical)throw new Error('No editor content found');
-  await api('/api/records/document','POST',{owner:context.owner,title,content:'Editor snapshot',canonical});
+  if(fromRover)await api('/api/resume-workflow/save','POST',{owner:context.owner,title,resume:canonical,jd:localStorage.getItem(context.key+'rover_job_description')||''});
+  else await api('/api/records/document','POST',{owner:context.owner,title,content:'Editor snapshot',canonical});
   await refresh();
-  if(page!=='Editor')render();
+  if(page!=='Editor'&&page!=='Rover Workspace')render();
   toast('Saved new resume version. Tracker stages unchanged.');
   return;
  }

@@ -49,7 +49,7 @@ const pendingAts = {
   partialKeywords: [],
 };
 
-export function ResumeBuilder({ initialPremium = false }) {
+export function ResumeBuilder({ initialPremium = false, workspaceMode = false }) {
   const { isLoaded, isSignedIn: clerkSignedIn } = useAuth();
   const signedIn = isLoaded ? clerkSignedIn : false;
   const fileInputRef = useRef(null);
@@ -57,8 +57,12 @@ export function ResumeBuilder({ initialPremium = false }) {
   const importRevisionRef = useRef(0);
   const importBusyRef = useRef(false);
   const uploadedSourceRef = useRef("");
-  const [workingResume, setWorkingResume] = useState(loadInitialResume);
+  const [workingResume, setWorkingResume] = useState(() => loadInitialResume(workspaceMode));
   const [premium, setPremium] = useState(initialPremium);
+  const [jdModalOpen, setJdModalOpen] = useState(false);
+  function openJdTailorModal() { if (!workspaceMode) setJdModalOpen(true); }
+  function closeJdTailorModal() { setJdModalOpen(false); }
+  useEffect(() => { if (workspaceMode && new URLSearchParams(window.location.search).get("entry") === "upload") openUpload(); }, [workspaceMode]);
   const [jobDescription, setJobDescription] = useState("");
   const [message, setMessage] = useState("");
   const [importOpen, setImportOpen] = useState(false);
@@ -75,7 +79,6 @@ export function ResumeBuilder({ initialPremium = false }) {
   const [activeTab, setActiveTab] = useState("edit");
   const [enhanceLoading, setEnhanceLoading] = useState(false);
   const [selectedFitIds, setSelectedFitIds] = useState([]);
-  const [jdModalOpen, setJdModalOpen] = useState(false);
   const [beforeResumeSnapshot, setBeforeResumeSnapshot] = useState(null);
   const [afterResumeSnapshot, setAfterResumeSnapshot] = useState(null);
   const [pdfDownloading, setPdfDownloading] = useState(false);
@@ -224,7 +227,7 @@ export function ResumeBuilder({ initialPremium = false }) {
       } else if (lower.endsWith(".docx")) {
         const formData = new FormData();
         formData.append("file", file);
-        const response = await fetch("/api/resume/parse-docx", { method: "POST", body: formData });
+        const response = await fetch(workspaceMode ? "/api/rover-workspace/parse-docx" : "/api/resume/parse-docx", { method: "POST", body: formData });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error || "DOCX parsing failed.");
         text = payload.text || "";
@@ -268,7 +271,7 @@ export function ResumeBuilder({ initialPremium = false }) {
     setImportPhase("converting");
     setImportError("");
     try {
-      const response = await fetch("/api/resume/optimize", {
+      const response = await fetch(workspaceMode ? "/api/rover-workspace/import" : "/api/resume/optimize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -296,7 +299,7 @@ export function ResumeBuilder({ initialPremium = false }) {
       uploadedSourceRef.current = "";
       setImportText("");
       setUploadInfo(null);
-      setMessage("Resume rebuilt successfully from your source with Gemini. Review and edit your imported details.");
+      setMessage(workspaceMode ? "Resume imported. Review the editable sections against your source." : "Resume rebuilt successfully from your source with Gemini. Review and edit your imported details.");
     } catch (error) {
       setImportError(error.message || "Resume conversion failed.");
       setMessage(error.message || "Resume conversion failed.");
@@ -308,6 +311,7 @@ export function ResumeBuilder({ initialPremium = false }) {
   }
 
   async function enhanceResume() {
+    if (workspaceMode) return;
     if (!jobDescription.trim() && !workingResume.targetRole.trim()) {
       openJdTailorModal();
       setMessage("Please enter Target Role or Job Description to optimize for 95+ ATS score.");
@@ -347,15 +351,8 @@ export function ResumeBuilder({ initialPremium = false }) {
     setMessage("AI changes restored to the previous approved version.");
   }
 
-  function openJdTailorModal() {
-    setJdModalOpen(true);
-  }
-
-  function closeJdTailorModal() {
-    setJdModalOpen(false);
-  }
-
   function switchResumeVersion(version) {
+    if (workspaceMode) return;
     if (version === "before") {
       if (activeResumeVersion === "after") {
         setAfterResumeSnapshot(structuredClone(workingResume));
@@ -372,7 +369,7 @@ export function ResumeBuilder({ initialPremium = false }) {
       if (afterResumeSnapshot) {
         setWorkingResume(structuredClone(afterResumeSnapshot));
         setActiveResumeVersion("after");
-        setMessage("Showing After Resume (95+ ATS) with highlighted changes.");
+        setMessage(workspaceMode ? "Showing the resume after job matching." : "Showing After Resume (95+ ATS) with highlighted changes.");
       } else {
         openJdTailorModal();
         setMessage("Enter Job Title and Description to generate your 95+ ATS After Resume!");
@@ -380,13 +377,13 @@ export function ResumeBuilder({ initialPremium = false }) {
     }
   }
 
-  function applyJdTailoredResume(tailoredResume, newJobDescription, highlightInfo) {
-    const snapshotBefore = structuredClone(beforeResumeSnapshot || workingResume);
+  function applyJdTailoredResume(tailoredResume, newJobDescription, highlightInfo, matchSource) {
+    const snapshotBefore = structuredClone(matchSource || beforeResumeSnapshot || workingResume);
     setBeforeResumeSnapshot(snapshotBefore);
 
     const highlight = highlightInfo || tailoredResume.aiHighlightData || null;
     const next = {
-      ...applyHarshibarTemplate(tailoredResume),
+      ...(workspaceMode ? tailoredResume : applyHarshibarTemplate(tailoredResume)),
       aiHighlightData: highlight,
       versionSnapshots: {
         ...workingResume.versionSnapshots,
@@ -404,7 +401,7 @@ export function ResumeBuilder({ initialPremium = false }) {
       setJobDescription(newJobDescription);
     }
     setJdModalOpen(false);
-    setMessage("Resume tailored successfully with 95+ ATS score! Highlighted points show Gemini/AI changes.");
+    setMessage(workspaceMode ? "Job match applied. Review your resume and estimated keyword coverage." : "Resume tailored successfully with 95+ ATS score! Highlighted points show Gemini/AI changes.");
   }
 
   async function handleQuickJdTailor() {
@@ -493,6 +490,11 @@ export function ResumeBuilder({ initialPremium = false }) {
 
   async function downloadDocx() {
     requirePremium(async () => {
+      if (workspaceMode) {
+        downloadFile(buildDocxFromCanonical(workingResume), getDownloadBaseName(workingResume, "docx"));
+        setMessage("Word document downloaded.");
+        return;
+      }
       const blob = buildDocxFromCanonical(workingResume);
       try {
         const formData = new FormData();
@@ -707,7 +709,7 @@ export function ResumeBuilder({ initialPremium = false }) {
             <h1>Build, tailor, fit, and export a professional ATS-friendly resume</h1>
           </div>
           <div className="actions">
-            <button className="ghost-btn" type="button" onClick={openUpload}>Upload / Convert</button>
+            <button className="ghost-btn" type="button" onClick={openUpload}>{workspaceMode ? "Upload Resume" : "Upload / Convert"}</button>
             <button className="primary-btn" type="button" onClick={startNewResume}>Create Resume</button>
           </div>
         </header>
@@ -728,6 +730,7 @@ export function ResumeBuilder({ initialPremium = false }) {
                 <small>{atsLabel}</small>
                 </div>
               </article>
+            {!workspaceMode ? <>
               <article className="choice-card static-card score-card jd-score-card">
                 <div className="score-ring" style={{ "--score": `${analysis.jobMatchScore ?? 0}%` }} aria-hidden="true"><b>{analysis.jobMatchScore ?? "--"}</b></div>
                 <div className="score-copy">
@@ -741,6 +744,7 @@ export function ResumeBuilder({ initialPremium = false }) {
                 <strong>{pageModel.pageCount}</strong>
                 <small>{pageModel.status === "fit" ? `Fits ${workingResume.documentSettings.resumeLength} page limit` : "Content does not fit"}</small>
               </article>
+            </> : null}
             </section>
 
             <FormSection title="Profile" className="profile-card">
@@ -757,7 +761,7 @@ export function ResumeBuilder({ initialPremium = false }) {
               </div>
             </FormSection>
 
-            <FormSection title="Job Description & ATS Optimization" className="jd-editor-card">
+            {!workspaceMode ? <FormSection title="Job Description & ATS Optimization" className="jd-editor-card">
               <label className="field">
                 Paste Job Description
                 <textarea
@@ -768,23 +772,23 @@ export function ResumeBuilder({ initialPremium = false }) {
                 />
               </label>
               <div className="actions" style={{ marginTop: 10, display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <button
+                {!workspaceMode && <button
                   className="primary-btn small"
                   type="button"
                   onClick={handleQuickJdTailor}
                   disabled={tailorLoading}
                 >
                   {tailorLoading ? "Tailoring to 95+ ATS..." : "🎯 Tailor Resume to this JD (95+ ATS)"}
-                </button>
+                </button>}
                 <button
                   className="ghost-btn small"
                   type="button"
-                  onClick={openJdTailorModal}
+                  onClick={() => setImportOpen(true)}
                 >
                   Upload JD / Options
                 </button>
               </div>
-            </FormSection>
+            </FormSection> : null}
 
             <FormSection title="Section Library" className="section-library-card">
               <div className="actions section-add-grid">
@@ -799,6 +803,7 @@ export function ResumeBuilder({ initialPremium = false }) {
             {workingResume.sections.map((section, index) => (
               <SectionEditor
                 key={section.id}
+                workspaceMode={workspaceMode}
                 section={section}
                 index={index}
                 onPatch={patchSection}
@@ -815,23 +820,25 @@ export function ResumeBuilder({ initialPremium = false }) {
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <strong>AI Resume Maker Preview</strong>
                 <span className={`preview-version-pill ${activeResumeVersion}`}>
-                  {activeResumeVersion === "after" ? "✨ After Resume (95+ ATS)" : "📄 Before Resume"}
+                  {activeResumeVersion === "after" ? (workspaceMode ? "After job match" : "✨ After Resume (95+ ATS)") : "📄 Before Resume"}
                 </span>
               </div>
               <div className="actions preview-actions">
-                <button className="primary-btn small" type="button" onClick={enhanceResume} disabled={enhanceLoading}>{enhanceLoading ? "Enhancing..." : "Enhance Resume"}</button>
+                {!workspaceMode && <button className="primary-btn small" type="button" onClick={enhanceResume} disabled={enhanceLoading}>{enhanceLoading ? "Enhancing..." : "Enhance Resume"}</button>}
                 <button className="ghost-btn small" type="button" onClick={downloadTxt}>Download TXT</button>
                 <button className="ghost-btn small" type="button" onClick={downloadDocx}>Download Word (.docx)</button>
                 {isHarshibar(workingResume) && <button className="ghost-btn small" type="button" onClick={downloadLatex}>Download LaTeX</button>}
-                {isHarshibar(workingResume) && <button className="ghost-btn small" type="button" onClick={downloadPdf} disabled={pdfDownloading}>{pdfDownloading ? "Preparing PDF..." : "Download PDF"}</button>}
+                {(workspaceMode || isHarshibar(workingResume)) && <button className="ghost-btn small" type="button" onClick={downloadPdf} disabled={pdfDownloading}>{pdfDownloading ? "Preparing PDF..." : "Download PDF"}</button>}
               </div>
             </div>
 
             {activeResumeVersion === "after" ? (
               <div className="preview-version-banner after">
-                <span>✨ <strong>After Resume (95+ ATS)</strong>: Points and keywords enhanced by Gemini/AI are <span className="sample-highlight">highlighted</span>.</span>
+                {workspaceMode ? <strong>After job match</strong> : <span>✨ <strong>After Resume (95+ ATS)</strong>: Points and keywords enhanced by Gemini/AI are <span className="sample-highlight">highlighted</span>.</span>}
                 <button className="ghost-btn mini-btn" type="button" onClick={() => switchResumeVersion("before")}>View Before</button>
               </div>
+            ) : workspaceMode && afterResumeSnapshot ? (
+              <button className="ghost-btn mini-btn" type="button" onClick={() => switchResumeVersion("after")}>View After</button>
             ) : null}
 
             {pageModel.status !== "fit" ? (
@@ -902,16 +909,17 @@ export function ResumeBuilder({ initialPremium = false }) {
 
       {importOpen ? (
         <UploadModal
+          workspaceMode={workspaceMode}
           importText={importText}
           uploadInfo={uploadInfo}
           importLoading={importLoading}
           importPhase={importPhase}
           importError={importError}
           targetRole={uploadTargetRole}
-          jobDescription={jobDescription}
+          jobDescription={workspaceMode ? "" : jobDescription}
           setImportText={(value) => { importRevisionRef.current += 1; setImportText(value); }}
           setTargetRole={(value) => { importRevisionRef.current += 1; setUploadTargetRole(value); }}
-          setJobDescription={(value) => { importRevisionRef.current += 1; setJobDescription(value); }}
+          setJobDescription={(value) => { if (!workspaceMode) { importRevisionRef.current += 1; setJobDescription(value); } }}
           onClose={() => !importLoading && setImportOpen(false)}
           onFile={handleFile}
           onConvert={convertImportedResume}
@@ -939,16 +947,7 @@ export function ResumeBuilder({ initialPremium = false }) {
 
       {upgradeOpen ? <UpgradeModal onClose={() => setUpgradeOpen(false)} onBuyNow={() => (window.location.href = "/pricing")} /> : null}
       {authGateOpen ? <LoginPromptModal onClose={() => setAuthGateOpen(false)} /> : null}
-      {jdModalOpen ? (
-        <JdTailorModal
-          currentResume={workingResume}
-          currentJobDescription={jobDescription}
-          onClose={closeJdTailorModal}
-          onApply={applyJdTailoredResume}
-          readPdf={readPdf}
-          setMessage={setMessage}
-        />
-      ) : null}
+      {!workspaceMode && jdModalOpen ? <JdTailorModal currentResume={workingResume} currentJobDescription={jobDescription} onClose={closeJdTailorModal} onApply={applyJdTailoredResume} readPdf={readPdf} setMessage={setMessage} /> : null}
       {message ? <Toast type={toastType} message={message} onClose={() => setMessage("")} /> : null}
 
       <input ref={fileInputRef} className="sr-only" type="file" accept=".txt,.md,.csv,.pdf,.docx,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(e) => handleFile(e.target.files?.[0])} />
@@ -956,16 +955,18 @@ export function ResumeBuilder({ initialPremium = false }) {
   );
 }
 
-function SectionEditor({ section, index, onPatch, onDelete, onDuplicate, onMove, onToggleVisibility }) {
+function SectionEditor({ section, index, onPatch, onDelete, onDuplicate, onMove, onToggleVisibility, workspaceMode = false }) {
   return (
     <section className="form-section">
       <div className="section-title">
         <BufferedField className="section-title-input" value={section.title} onCommit={(value) => onPatch(section.id, (current) => ({ ...current, title: value }))} />
         <div className="actions inline-actions">
+          {!workspaceMode ? <>
           <button className="mini-btn" type="button" onClick={() => onMove(section.id, "up")} disabled={index === 0}>Up</button>
           <button className="mini-btn" type="button" onClick={() => onMove(section.id, "down")}>Down</button>
           <button className="mini-btn" type="button" onClick={() => onDuplicate(section.id)}>Duplicate</button>
           <button className="mini-btn" type="button" onClick={() => onToggleVisibility(section.id)}>{section.visible ? "Hide" : "Show"}</button>
+          </> : null}
           <button className="mini-btn danger" type="button" onClick={() => onDelete(section.id)}>Delete</button>
         </div>
       </div>
@@ -1076,7 +1077,7 @@ function EntrySectionEditor({ section, onPatch }) {
   );
 }
 
-function UploadModal({ importText, uploadInfo, importLoading, importPhase, importError, targetRole, jobDescription, setImportText, setTargetRole, setJobDescription, onClose, onFile, onConvert }) {
+function UploadModal({ workspaceMode, importText, uploadInfo, importLoading, importPhase, importError, targetRole, jobDescription, setImportText, setTargetRole, setJobDescription, onClose, onFile, onConvert }) {
   return (
     <div className="modal-backdrop resume-import-backdrop" role="dialog" aria-modal="true" aria-busy={importLoading} aria-labelledby="resume-import-title">
       <div className="modal-card upload-modal old-upload-modal resume-import-card">
@@ -1091,10 +1092,10 @@ function UploadModal({ importText, uploadInfo, importLoading, importPhase, impor
         </label>
         {uploadInfo ? <div className="upload-status"><strong>{uploadInfo.name}</strong><span>{uploadInfo.status}{uploadInfo.chars ? ` - ${uploadInfo.chars} characters` : ""}</span></div> : null}
         <label className="field"><span className="import-field-label"><ImportIcon name="person" />Target role</span><input disabled={importLoading} placeholder="e.g. Software Engineer, Product Manager..." value={targetRole} onChange={(e) => setTargetRole(e.target.value)} /></label>
-        <label className="field"><span className="import-field-label"><ImportIcon name="document" />Job description</span><textarea disabled={importLoading} placeholder="Paste the job description here..." rows={3} value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} /></label>
+        {!workspaceMode ? <label className="field"><span className="import-field-label"><ImportIcon name="document" />Job description</span><textarea disabled={importLoading} placeholder="Paste the job description here..." rows={3} value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} /></label> : null}
         <label className="field"><span className="import-field-label"><ImportIcon name="book" />Raw import text</span><textarea disabled={importLoading} placeholder="Raw resume text will appear here..." rows={6} value={importText} onChange={(e) => setImportText(e.target.value)} /></label>
         {importError ? <p className="notice">{importError}</p> : null}
-        {importLoading ? <p className="resume-import-progress" role="status" aria-live="polite">{importPhase === "reading" ? "Reading your resume file…" : "AI is converting your resume. Please wait…"}</p> : null}
+        {importLoading ? <p className="resume-import-progress" role="status" aria-live="polite">{importPhase === "reading" ? "Reading your resume file…" : workspaceMode ? "Importing your resume…" : "AI is converting your resume. Please wait…"}</p> : null}
         <div className="modal-actions">
           <button className="ghost-btn" type="button" onClick={onClose} disabled={importLoading}>Cancel</button>
           <button className="primary-btn" type="button" onClick={onConvert} disabled={importLoading} aria-busy={importLoading}>{importLoading ? <span className="resume-import-spinner" aria-hidden="true" /> : <ImportIcon name="sparkles" />}{importLoading ? (importPhase === "reading" ? "Reading file…" : "Converting…") : "Convert Resume"}</button>
@@ -1445,9 +1446,13 @@ function capitalize(value) {
   return String(value || "").charAt(0).toUpperCase() + String(value || "").slice(1);
 }
 
-function loadInitialResume() {
+function loadInitialResume(keepDraft = false) {
   if (typeof window !== "undefined") {
     try {
+      if (keepDraft) {
+        const draft = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
+        if (draft) return ensureCanonicalResume(draft);
+      }
       window.localStorage.removeItem(STORAGE_KEY);
       LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
     } catch {}
@@ -1707,6 +1712,8 @@ async function loadPdfJs() {
 
 
 function JdTailorModal({
+  workspaceMode = false,
+  initialResumeMode = "current",
   currentResume,
   currentJobDescription,
   onClose,
@@ -1716,7 +1723,7 @@ function JdTailorModal({
 }) {
   const [jobTitle, setJobTitle] = useState(currentResume.targetRole || "");
   const [jobDescription, setJobDescription] = useState(currentJobDescription || "");
-  const [resumeMode, setResumeMode] = useState("current");
+  const [resumeMode, setResumeMode] = useState(initialResumeMode);
   const [uploadedResume, setUploadedResume] = useState(null);
   const [uploadedResumeName, setUploadedResumeName] = useState("");
   const [jdFileName, setJdFileName] = useState("");
@@ -1731,6 +1738,10 @@ function JdTailorModal({
 
   async function handleJdFile(file) {
     if (!file) return;
+    if (workspaceMode && file.size > MAX_IMPORT_BYTES) {
+      setError("Choose a job description file up to 10 MB.");
+      return;
+    }
     setLoading(true);
     setLoadingStep("Reading Job Description file...");
     setError("");
@@ -1742,7 +1753,7 @@ function JdTailorModal({
       } else if (lower.endsWith(".docx")) {
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/resume/parse-docx", { method: "POST", body: formData });
+        const res = await fetch(workspaceMode ? "/api/rover-workspace/parse-docx" : "/api/resume/parse-docx", { method: "POST", body: formData });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "DOCX parsing failed.");
         text = data.text || "";
@@ -1768,6 +1779,14 @@ function JdTailorModal({
 
   async function handleResumeFile(file) {
     if (!file) return;
+    if (workspaceMode) {
+      setUploadedResume(null);
+      setUploadedResumeName("");
+      if (file.size > MAX_IMPORT_BYTES) {
+        setError("Choose a resume file up to 10 MB.");
+        return;
+      }
+    }
     setLoading(true);
     setLoadingStep("Reading & parsing uploaded resume...");
     setError("");
@@ -1779,7 +1798,7 @@ function JdTailorModal({
       } else if (lower.endsWith(".docx")) {
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/resume/parse-docx", { method: "POST", body: formData });
+        const res = await fetch(workspaceMode ? "/api/rover-workspace/parse-docx" : "/api/resume/parse-docx", { method: "POST", body: formData });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "DOCX parsing failed.");
         text = data.text || "";
@@ -1788,7 +1807,19 @@ function JdTailorModal({
       }
       text = cleanResumeImportText(text);
       if (!text.trim()) throw new Error("No readable text found in resume file.");
-      const parsed = parseImportedResume(text, jobTitle || "Professional");
+      let parsed;
+      if (workspaceMode) {
+        const response = await fetch("/api/rover-workspace/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rawText: text, targetRole: jobTitle }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Resume import failed.");
+        parsed = data.resume;
+      } else {
+        parsed = parseImportedResume(text, jobTitle || "Professional");
+      }
       setUploadedResume(parsed);
       setUploadedResumeName(file.name);
       if (!jobTitle && parsed.targetRole) {
@@ -1804,16 +1835,20 @@ function JdTailorModal({
   }
 
   async function runOptimization() {
+    if (workspaceMode && resumeMode === "upload" && !uploadedResume) {
+      setError("Upload a readable resume first.");
+      return;
+    }
     if (!jobDescription.trim() && !jobTitle.trim()) {
       setError("Please enter a Target Job Title or Job Description.");
       return;
     }
     setLoading(true);
-    setLoadingStep("Extracting keywords & tailoring resume to 95+ ATS score...");
+    setLoadingStep(workspaceMode ? "Matching job requirements against your resume…" : "Extracting keywords & tailoring resume to 95+ ATS score...");
     setError("");
     const chosenPages = Number(targetPages) || 1;
     try {
-      const res = await fetch("/api/resume/tailor-jd", {
+      const res = await fetch(workspaceMode ? "/api/rover-workspace/match" : "/api/resume/tailor-jd", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1825,9 +1860,10 @@ function JdTailorModal({
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
-        setResult(data);
+        setResult(workspaceMode ? { ...data, matchedSource: targetResume, matchedDescription: jobDescription } : data);
         return;
       }
+      if (workspaceMode) throw new Error(data.error || "Job matching failed. Your draft is unchanged.");
       const clientResult = tailorResumeToJobDescription({
         resume: targetResume,
         jobTitle: jobTitle || targetResume.targetRole,
@@ -1845,6 +1881,10 @@ function JdTailorModal({
         diff: clientResult.diff,
       });
     } catch (err) {
+      if (workspaceMode) {
+        setError(err.message || "Job matching failed. Your draft is unchanged.");
+        return;
+      }
       const clientResult = tailorResumeToJobDescription({
         resume: targetResume,
         jobTitle: jobTitle || targetResume.targetRole,
@@ -1869,11 +1909,11 @@ function JdTailorModal({
 
   function handleApply() {
     if (!result?.resume) return;
-    onApply(result.resume, jobDescription, result.highlightData || {
+    onApply(result.resume, workspaceMode ? result.matchedDescription : jobDescription, result.highlightData || {
       addedKeywords: result.addedKeywords || [],
       changedBullets: result.changedBullets || [],
       summaryChanged: Boolean(result.summaryChanged),
-    });
+    }, result.matchedSource);
   }
 
   return (
@@ -1881,9 +1921,9 @@ function JdTailorModal({
       <div className="modal-card upload-modal jd-modal-card">
         <button className="popup-close" type="button" onClick={onClose}>x</button>
         <p className="eyebrow">AI RESUME MAKER • ATS OPTIMIZER</p>
-        <h2>Tailor Resume to Job Description (95+ ATS Score)</h2>
+        <h2>{workspaceMode ? "Match Resume to Job Description" : "Tailor Resume to Job Description (95+ ATS Score)"}</h2>
         <p className="muted-small">
-          Upload or paste your Job Title & Description. The engine will extract ATS keywords, align your summary, integrate missing skills, and enhance bullet points to guarantee a 95+ score.
+          {workspaceMode ? "Upload or paste a job description. Review matched skills, missing requirements and edits supported by your resume before applying." : "Upload or paste your Job Title & Description. The engine will extract ATS keywords, align your summary, integrate missing skills, and enhance bullet points to guarantee a 95+ score."}
         </p>
 
         <div className="jd-toggle-group">
@@ -1991,7 +2031,7 @@ function JdTailorModal({
               onClick={runOptimization}
               disabled={loading || (!jobTitle.trim() && !jobDescription.trim())}
             >
-              {loading ? (loadingStep || "Optimizing for 95+ ATS...") : "🎯 Optimize Resume for 95+ ATS Score"}
+              {loading ? loadingStep : workspaceMode ? "Analyse Job Match" : "🎯 Optimize Resume for 95+ ATS Score"}
             </button>
           </div>
         ) : null}
@@ -2006,12 +2046,12 @@ function JdTailorModal({
               </div>
               <div className="jd-score-box">
                 <span>Job Match Score</span>
-                <strong>{result.beforeMatchScore ?? "--"}/100 ➔ {result.afterMatchScore}/100</strong>
+                <strong>{result.beforeMatchScore ?? "--"}/100 ➔ {result.afterMatchScore ?? "--"}/100</strong>
                 <small>Keyword alignment & evidence</small>
               </div>
-              <div className="jd-guarantee-badge">
+              {!workspaceMode && <div className="jd-guarantee-badge">
                 {result.afterScore >= 95 ? "✓ 95+ ATS Readiness" : "✓ ATS Tailored"}
-              </div>
+              </div>}
             </div>
 
             <div className="jd-chips-section">
@@ -2023,6 +2063,12 @@ function JdTailorModal({
               </div>
             </div>
 
+            {workspaceMode && result.missingKeywords?.length ? (
+              <div className="jd-chips-section">
+                <h4>Requirements to Review</h4>
+                <p>{result.missingKeywords.join(", ")}</p>
+              </div>
+            ) : null}
             {result.addedKeywords?.length ? (
               <div className="jd-chips-section">
                 <h4>Keywords Integrated into Resume ({result.addedKeywords.length})</h4>
@@ -2046,7 +2092,7 @@ function JdTailorModal({
                         <textarea rows={3} readOnly value={change.before} />
                       </label>
                       <label className="field">
-                        <small style={{ color: "var(--ok)", fontWeight: 700 }}>After (95+ ATS Optimized)</small>
+                        <small style={{ color: "var(--ok)", fontWeight: 700 }}>{workspaceMode ? "After" : "After (95+ ATS Optimized)"}</small>
                         <textarea rows={3} readOnly value={change.after} />
                       </label>
                     </div>

@@ -1,6 +1,6 @@
 export const config = {
   api: { bodyParser: false, responseLimit: false },
-  maxDuration: 60,
+  maxDuration: 300,
 };
 
 export default async function workspace(req, res) {

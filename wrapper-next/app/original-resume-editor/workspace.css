@@ -1,0 +1,49 @@
+@media screen {
+  body:has(.rover-workspace-embed) { min-height: 0; background: var(--local-page) !important; }
+  body:has(.rover-workspace-embed) .topbar,
+  .rover-workspace-embed .rover-sidebar { display: none !important; }
+  .rover-workspace-embed { position: relative; display: flow-root; }
+  .rover-workspace-embed {
+    --local-shadow: none;
+    --local-shadow-raised: none;
+    --shadow: none;
+  }
+  .rover-workspace-embed .old-builder :is(.paper, .resume-paper, .paged-paper, .modal-card, .toast, button),
+  .rover-workspace-embed .old-builder button:hover {
+    box-shadow: none !important;
+  }
+  .rover-workspace-embed .rover-dashboard.old-builder {
+    display: block;
+    min-height: 0;
+    padding: 0;
+    background: var(--local-page) !important;
+  }
+  .rover-workspace-embed .old-builder .rover-workspace { min-width: 0; padding: 0; }
+  .rover-workspace-embed .old-builder :is(.form-section, .choice-card, .ats-hero-score, .item-box, .preview-wrap, .suggestions) {
+    box-shadow: none !important;
+    border-radius: 11px;
+  }
+  .rover-workspace-embed .old-builder .preview-wrap { position: static; }
+  .rover-workspace-embed .old-builder .paged-preview-shell {
+    max-height: none;
+    overflow: visible;
+    background: var(--local-mint);
+    border-color: var(--local-border);
+  }
+  .rover-workspace-embed .old-builder .modal-backdrop {
+    position: absolute;
+    top: var(--rover-visible-top, 0px);
+    bottom: var(--rover-visible-bottom, 0px);
+  }
+  .rover-workspace-embed .resume-import-card {
+    box-sizing: border-box;
+    width: min(560px, 100%);
+    min-width: 0;
+    overflow-x: clip;
+  }
+  .rover-workspace-embed .resume-import-card :is(input, textarea, .drop, .upload-status) { min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .rover-workspace-embed .old-builder .toast {
+    position: absolute;
+    bottom: calc(var(--rover-visible-bottom, 0px) + 16px);
+  }
+}

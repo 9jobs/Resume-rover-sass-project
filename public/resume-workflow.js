@@ -57,11 +57,18 @@ export function reviseGuidedBullet(source,choice,text){
 }
 
 export function structureSourceProjects(sourceLines){
- const lines=sourceLines.map(line=>String(line).trim()).filter(Boolean),entries=[];let current=null,lastBullet=false;
+ const month='(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)';
+ const date='(?:'+month+'\\s+)?(?:19|20)\\d{2}';
+ const range=date+'\\s*[-–—]\\s*(?:'+date+'|Present|Current)';
+ const datedTitle=new RegExp('^(.+?)\\s*\\|\\s*('+range+')\\s*$','i');
+ // Restore explicit inline list markers, without splitting date ranges or hyphenated titles.
+ const text=sourceLines.map(String).join('\n').replace(/[ \t]+-[ \t]+(?=(?:Developed|Designed|Gained|Built|Implemented|Created|Integrated|Tested|Delivered|Maintained|Documented|Optimized|Optimised|Used|Collaborated|Managed)\b)/g,'\n- ')
+  .replace(new RegExp('([.!?])\\s+(?=[^\\n.!?]{2,120}\\s*\\|\\s*'+range+')','g'),'$1\n');
+ const lines=text.split('\n').map(line=>line.trim()).filter(Boolean),entries=[];let current=null,lastBullet=false;
  const technology=line=>/^(?:technologies|technology|tech\s*stack|tools(?:\s*(?:and|&)\s*technologies)?)\s*:/i.test(line||'');
  for(let i=0;i<lines.length;i++){
-  const line=lines[i],bullet=/^[•●▪*-]\s+/u.test(line),text=line.replace(/^[•●▪*-]\s+/u,'');
-  if(!bullet&&!technology(line)&&technology(lines[i+1])){current={id:'source-project-'+entries.length,title:text,organization:'',location:'',subtitle:'',dateRange:'',url:'',bullets:[]};entries.push(current);lastBullet=false;continue}
+  const line=lines[i],bullet=/^[•●▪*-]\s+/u.test(line),text=line.replace(/^[•●▪*-]\s+/u,''),dated=!bullet&&line.match(datedTitle);
+  if(!bullet&&!technology(line)&&(dated||technology(lines[i+1]))){current={id:'source-project-'+entries.length,title:dated?dated[1].trim():text,organization:'',location:'',subtitle:'',dateRange:dated?dated[2].trim():'',url:'',bullets:[]};entries.push(current);lastBullet=false;continue}
   if(!current)return null;
   if(technology(line)){current.subtitle=line;lastBullet=false;continue}
   if(bullet){current.bullets.push(text);lastBullet=true;continue}
@@ -116,6 +123,26 @@ export function restoreImportedSourceContent(input){
 export function recoverImportedSkills(input,{restoreSource=false}={}){
  if(restoreSource)input=restoreImportedSourceContent(input);
  const resume=structuredClone(input),source=restoreSource?'':resume.rawImport?.rawText||'',found=[];
+ // A flattened import can append the following Skills heading to the last project.
+ // Remove only an explicit trailing list corroborated by the existing Skills section.
+ const skillKey=text=>String(text||'').trim().toLowerCase().replace(/\s+/g,' ');
+ const knownSkills=new Set((resume.sections||[]).filter(s=>s.type==='skills').flatMap(s=>[...(s.content.items||[]),...(s.content.categories||[]).flatMap(c=>c.items||[])]).flatMap(text=>String(text).split(/[,;|\n]/)).map(skillKey).filter(Boolean));
+ const cleanProjectText=value=>{
+  if(typeof value!=='string')return value;
+  const boundary=/(?:^|[.!?]\s+|\n\s*)(?:technical\s+)?skills?\s*:?\s+([^\n]+(?:\n[^\n]+)*)$/i.exec(value);
+  if(!boundary)return value;
+  const items=boundary[1].split(/[,;|\n]/).map(skillKey).filter(Boolean);
+  if(items.length<3||new Set(items.filter(item=>knownSkills.has(item))).size<3)return value;
+  // Keep the punctuation ending the genuine project bullet.
+  return value.slice(0,boundary.index+( /^[.!?]/.test(boundary[0])?1:0)).trimEnd();
+ };
+ for(const section of resume.sections||[])if(section.type==='projects'){
+  for(const field of ['paragraphs','bullets'])if(Array.isArray(section.content[field]))section.content[field]=section.content[field].map(cleanProjectText).filter(Boolean);
+  for(const entry of section.content.entries||[]){
+   if(Array.isArray(entry.bullets))entry.bullets=entry.bullets.map(cleanProjectText).filter(Boolean);
+   for(const field of ['description','subtitle'])if(typeof entry[field]==='string')entry[field]=cleanProjectText(entry[field]);
+  }
+ }
  // Repair a previously imported project paragraph from its own current text,
  // without restoring old source over a user's subsequent edits.
  for(const s of resume.sections||[])if(s.type==='projects'&&!s.content.entries?.length&&s.content.paragraphs?.length){const projects=structureSourceProjects(s.content.paragraphs.join('\n').split('\n'));if(projects)s.content={entries:projects,paragraphs:[],bullets:[],blocks:[]}}

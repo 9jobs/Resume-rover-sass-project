@@ -10,6 +10,8 @@ import {analyseUniversal} from './features/ats-python.mjs';
 import {buildDocxFromCanonical,buildResumeHtmlDocument,getPaginatedDocumentModel} from './adapters/resume-format.js';
 import {renderLocalPdf} from './features/resume-pdf.mjs';
 import {auditResumeContent} from './features/resume-integrity.mjs';
+import {extractDocxResumeText} from './engine/lib/docx-resume-import.js';
+import {MAX_IMPORT_BYTES} from './engine/lib/resume-import.js';
 // Local wrapper; all files under engine/ remain byte-for-byte copies.
 
 import http from 'node:http';
@@ -39,6 +41,7 @@ if(!hosted)process.chdir(root);
 const geminiConfig={key:process.env.GEMINI_API_KEY||'',model:process.env.GEMINI_MODEL||''};
 const authConfig=loadAuthConfig(root);
 const privateGeminiFetch=globalThis.fetch.bind(globalThis);
+if(!hosted)globalThis[Symbol.for("rover.native.geminiFetch")]=(input,init)=>{const url=new URL(String(input));if(url.protocol!=="https:"||url.hostname!=="generativelanguage.googleapis.com")throw new Error("Unsupported Rover AI destination");return privateGeminiFetch(input,init)};
 if(!hosted)for(const k of Object.keys(process.env))if(/CLERK|GEMINI|OPENAI|STRIPE|RAZORPAY|DATABASE_URL|DOCRAPTOR|GOOGLE_CLIENT|GOOGLE_REDIRECT/i.test(k))delete process.env[k];
 
 process.env.NEXT_TELEMETRY_DISABLED='1';
@@ -106,7 +109,7 @@ export async function handleWorkspaceRequest(req,res){
   return json(res,200,{ok:true});
  }
 
- if(p==='/api/auth/config'&&req.method==='GET')return json(res,200,authExtensions.configFor(req));
+ if(p==='/api/auth/config'&&req.method==='GET')return json(res,200,{...authExtensions.configFor(req),roverWorkspace:true});
  if(p==='/api/auth/recovery/request'&&req.method==='POST'){const b=await body(req);return json(res,200,authExtensions.requestRecovery(b.email,req.socket.remoteAddress,'http://'+req.headers.host))}
  if(p==='/api/auth/recovery/complete'&&req.method==='POST'){const result=authExtensions.resetPassword(await body(req),req.socket.remoteAddress);res.setHeader('Set-Cookie','sid=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');return json(res,200,result)}
  if(p==='/api/auth/google/start'&&req.method==='GET'){if(req.headers['sec-fetch-site']==='cross-site')return json(res,403,{error:'Start Google sign-in from the login page'});const result=authExtensions.startGoogle(req.headers.host);if(result.binding)res.setHeader('Set-Cookie',`oauth_bind=${result.binding}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`);res.writeHead(302,{Location:result.canonical||result.url});return res.end()}
@@ -169,6 +172,35 @@ export async function handleWorkspaceRequest(req,res){
 
  if(p==='/api/state'&&req.method==='GET')return json(res,200,{...store.state(u),...career.state(u)});
 
+ if(!hosted&&p.startsWith('/api/rover-workspace/')&&req.method==='POST'){
+  if(p==='/api/rover-workspace/parse-docx'){
+   const chunks=[];
+   let size=0;
+   for await(const chunk of req){
+    size+=chunk.length;
+    if(size>MAX_IMPORT_BYTES+65536)return json(res,413,{error:'Choose a DOCX file up to 10 MB.'});
+    chunks.push(chunk);
+   }
+   const form=await new Request(url,{method:'POST',headers:{'Content-Type':req.headers['content-type']||''},body:Buffer.concat(chunks)}).formData().catch(()=>null);
+   const file=form?.get('file');
+   if(!file||typeof file.arrayBuffer!=='function'||!/\.docx$/i.test(file.name))return json(res,400,{error:'Choose a DOCX file.'});
+   const source=await extractDocxResumeText(Buffer.from(await file.arrayBuffer()));
+   return json(res,200,{ok:true,text:source});
+  }
+  const b=await body(req);
+  if(p==='/api/rover-workspace/import'){
+   const imported=await resumeWorkflow.importResume({rawText:b.rawText||b.uploadedText});
+   for(const section of imported.resume.sections.filter(section=>section.type==='skills'&&section.layout==='compact-list')){
+    const {items,categories}=section.content;
+    section.content.items=[...new Set([...items,...categories.flatMap(category=>category.items)])];
+    section.content.categories=[];
+   }
+   const role=typeof b.targetRole==='string'?b.targetRole.trim().slice(0,200):'';
+   if(role)imported.resume.targetRole=role;
+   return json(res,200,{ok:true,resume:imported.resume,provider:'local'});
+  }
+ }
+
  if(p==='/api/gemini/status'&&req.method==='GET')return json(res,200,career.state(u).gemini);
  if(p==='/api/interview-resumes'&&req.method==='POST')return json(res,200,career.uploadResume(u,await body(req),'interview'));
  if(p==='/api/cover-letter-resumes'&&req.method==='POST')return json(res,200,career.uploadResume(u,await body(req)));
@@ -198,6 +230,37 @@ export async function handleWorkspaceRequest(req,res){
 
  if(p==='/api/engine-seed'&&req.method==='GET'){const id=url.searchParams.get('document');const owner=url.searchParams.get('owner')||u.id;store.access(u,owner);let resume=createDefaultWorkingResume();if(id){const d=store.record(u,id,'document');resume=d.data.canonical||safeImport(d.data.content)}return json(res,200,{resume,user:u.id,owner})}
 
+ if(p.startsWith('/api/rover-native/')){
+  if(!store.authenticate(cookie(req)))return json(res,401,{error:'Please sign in'});
+  if(p==='/api/rover-native/pdf'&&req.method==='POST'){
+   const {resume}=await body(req);
+   const native=await import('./engine/lib/ai-resume.js');
+   const model=native.getPaginatedDocumentModel(resume);
+   if(!model.fit)return json(res,422,{error:'Content exceeds your page target. Review Fit Suggestions or choose two pages.'});
+   const bytes=await renderLocalPdf(native.buildResumeHtmlDocument(resume));
+   res.setHeader('Content-Type','application/pdf');return res.end(bytes);
+  }
+  if(hosted){
+   if(req.method!=='POST')return json(res,405,{error:'POST required'});
+   const action=p.split('/').pop();
+   if(action==='optimize'){
+    const input=await body(req);
+    if(input.mode!=='import')return json(res,400,{error:'Use resume import or the job tailoring action.'});
+    const {importRoverResume}=await import('./features/rover-import-retry.mjs');
+    const config=loadGeminiConfig(root);
+    const result=await importRoverResume(input,{apiKey:config.key,backupModel:config.model,fetchImpl:privateGeminiFetch});
+    return json(res,200,{ok:true,...result,provider:result.provider||'gemini'});
+   }
+   const handlers={'tailor-jd':()=>import('./features/rover-native-tailor-jd.mjs'),'parse-docx':()=>import('./features/rover-native-parse-docx.mjs'),'validate-docx':()=>import('./features/rover-native-validate-docx.mjs')};
+   if(!handlers[action])return json(res,404,{error:'Unknown resume action'});
+   const route=await handlers[action]();
+   const result=await route.POST(new Request(url,{method:req.method,headers:req.headers,body:req,duplex:'half'}));
+   res.statusCode=result.status;res.setHeader('Content-Type',result.headers.get('content-type')||'application/json');
+   return res.end(Buffer.from(await result.arrayBuffer()));
+  }
+  return handle(req,res);
+ }
+
  if(p==='/api/payments/status')return json(res,200,{premium:true,simulation:true});
 
  if(p==='/api/resume/optimize'&&req.method==='POST'){const b=await body(req);return json(res,200,{ok:true,resume:safeImport(b.rawText),provider:'local-demo',message:'Source-preserving demo import; no AI service called'})}
@@ -221,10 +284,10 @@ export async function handleWorkspaceRequest(req,res){
 
  if(p.startsWith('/api/'))return json(res,403,{error:'Live integrations disabled; use the local Account simulation'});
 
- const editorRoute = p === '/career-cockpit';
+ const editorRoute = p === '/career-cockpit' || p === '/original-resume-editor';
  if(editorRoute){const scope=url.searchParams.get('localScope')||'';const parts=scope.split(':');if(parts[0]!=='resume'||parts[1]!==u.id)return json(res,403,{error:'Open the editor from your workspace'});store.access(u,parts[2]);}
 
- if(editorRoute||p.startsWith('/_next/')||p.startsWith('/img/')||p==='/favicon.ico')return handle(req,res);
+ if(editorRoute||p.startsWith('/_next/')||(!hosted&&p.startsWith('/__nextjs'))||p.startsWith('/img/')||p==='/favicon.ico')return handle(req,res);
 
  res.writeHead(302,{Location:'/'});res.end();
 

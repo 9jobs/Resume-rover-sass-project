@@ -20,6 +20,9 @@ export default {
       './node_modules/pdfjs-dist/package.json',
       './node_modules/@napi-rs/canvas/**/*',
       './node_modules/@napi-rs/canvas-linux-x64-gnu/**/*',
+      './node_modules/@fontsource/arimo/files/arimo-latin-*-normal.woff',
+      './node_modules/@fontsource/tinos/files/tinos-latin-*-normal.woff',
+      './node_modules/@fontsource/carlito/files/carlito-latin-*-normal.woff',
     ],
   },
   async rewrites() {
