@@ -5,6 +5,18 @@ const key=value=>clean(value).toLowerCase();
 export function recoverAtsSourceMappings(input){
  const source=String(input.rawImport?.rawText||'');if(!source)return input;
  const resume=structuredClone(input),lines=source.split(/\r?\n/).map(clean).filter(Boolean);
+ const contactLines=lines.slice(0,lines.findIndex(line=>/^(?:(?:professional|career|work)\s+)?(?:summary|experience|education|references?)\s*:?$/i.test(line))<0?8:lines.findIndex(line=>/^(?:(?:professional|career|work)\s+)?(?:summary|experience|education|references?)\s*:?$/i.test(line)));
+ if(!resume.profile.location||/^(?:professional\s+)?summary$|^contact$/i.test(resume.profile.location)){
+  const labelled=contactLines.join('\n').match(/(?:^|\|)\s*(?:location|address|based in)\s*:\s*([^|\n]+)/i);
+  const candidate=labelled?.[1]||contactLines.flatMap(line=>line.split('|')).map(clean).find(part=>/\b(?:VIC|NSW|QLD|WA|SA|TAS|ACT|NT)\b(?:\s*,?\s*\d{4})?$/i.test(part)&&!/@|https?:|\b(?:phone|mobile|tel)\s*:/i.test(part));
+  if(candidate)resume.profile.location=candidate.trim();
+ }
+ // Pipes and semicolons delimit separate skills in common exported resumes.
+ // Keep literal phrases; never infer a skill from a target position.
+ for(const section of resume.sections.filter(s=>s.type==='skills')){
+  section.content.items=(section.content.items||[]).flatMap(item=>String(item).split(/\s*[|;•]\s*/).map(clean).filter(Boolean));
+  for(const category of section.content.categories||[])category.items=(category.items||[]).flatMap(item=>String(item).split(/\s*[|;•]\s*/).map(clean).filter(Boolean));
+ }
  if(String(resume.profile.phone||'').replace(/\D/g,'').length<8){
   const contact=source.split(/^\s*(?:(?:professional|career|work)\s+)?(?:summary|experience|education|references?|referees?)\s*:?\s*$/im)[0];
   const match=contact.match(/^\s*(?:phone|mobile|tel(?:ephone)?)\s*:\s*(\+?\d[\d ()+.-]{6,}\d)/im);

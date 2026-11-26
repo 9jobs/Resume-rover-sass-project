@@ -10,3 +10,20 @@ test('the exact class of parser defects generates a real recalculated After incr
 test('no missing phone digits or JD skills are invented and a reference contact is never used as the candidate phone',()=>{const r=fixture();r.rawImport.rawText='Avery Example\nPROFESSIONAL SUMMARY\nBusiness analyst.\nReferences\nPhone: +61 411 222 333';const next=recoverAtsSourceMappings(r);assert.equal(next.profile.phone,'');assert.deepEqual(next.sections.find(s=>s.type==='skills'),r.sections.find(s=>s.type==='skills'));const valid=fixture();valid.profile.phone='+61 422 333 444';assert.equal(recoverAtsSourceMappings(valid).profile.phone,valid.profile.phone)});
 test('a stray date parenthesis merged into a short real achievement is removed without losing that achievement',()=>{const r=fixture(),role=r.sections.find(s=>s.type==='experience').content.entries[0];role.bullets=[') Provided frontline IT support and troubleshooting.'];const next=recoverAtsSourceMappings(r);assert.deepEqual(next.sections.find(s=>s.type==='experience').content.entries[0].bullets,['Provided frontline IT support and troubleshooting.'])});
 test('wrapped education lines recover complete source degree/institution/date rows without guessing credentials',()=>{const r=fixture();r.rawImport.rawText+='\nEducation\n- Bachelor of Information Systems, Example University (2009-2012)\n- Diploma of Marketing & Certificate IV, Example International College\n(2015-2016)\n- Diploma of Information System (E-Business Development), Example\nCollege (2007 – 2008)';r.sections.find(s=>s.type==='education').content.entries=[{id:'broken',title:'',organization:'College',dateRange:'2007 – 2008',bullets:[]}];const next=recoverAtsSourceMappings(r),entries=next.sections.find(s=>s.type==='education').content.entries;assert.equal(entries.length,3);assert.deepEqual(entries.map(e=>e.organization),['Example University','Example International College','Example College']);assert.equal(entries[2].title,'Diploma of Information System (E-Business Development)');assert.equal(entries[1].dateRange,'2015-2016');assert.deepEqual(recoverAtsSourceMappings(next),next)});
+
+test('contact and pipe-delimited skills recover across multiple positions with no candidate-specific rules',()=>{
+ for(const role of ['Site Supervisor','Digital Marketing Manager','Registered Nurse','Software Engineer']){
+  const r=fixture();r.targetRole=role;r.profile.location='';r.rawImport.rawText='Jordan Example\n+61 400 123 456 | jordan@example.invalid | Melbourne VIC, 3084\nPROFESSIONAL SUMMARY\nExisting professional experience.';
+  r.sections.find(s=>s.type==='skills').content={items:['Planning | Coordination','Reporting | Documentation','Quality | Safety','Analysis | Communication'],categories:[]};
+  const a=analyseOptimizer(r),s=a.suggestions.find(s=>s.id==='source-recovery');assert(s.delta>0);
+  const next=applyOptimizer(r,'',s.id,a.hash);assert.equal(next.resume.profile.location,'Melbourne VIC, 3084');assert.equal(next.resume.sections.find(s=>s.type==='skills').content.items.length,8);assert(next.analysis.score>a.analysis.score);assert.equal(r.profile.location,'');assert.deepEqual(recoverAtsSourceMappings(next.resume),next.resume);
+ }
+});
+
+test('work-evidenced skills can improve several roles without a JD, and JD-only claims are never added',()=>{
+ for(const role of ['QA Engineer','Marketing Analyst','Operations Analyst']){
+  const r=fixture();r.targetRole=role;r.rawImport={rawText:''};r.sections.find(s=>s.type==='skills').content={items:['Documentation'],categories:[]};
+  r.sections.find(s=>s.type==='experience').content.entries=[{id:'proof',title:role,organization:'Example',dateRange:'2020 – Present',bullets:['Developed SQL and Python reporting with Power BI, Excel, Tableau, Jira, GitHub and Agile delivery.']}];
+  const a=analyseOptimizer(r,'Kubernetes required'),s=a.suggestions.find(s=>s.id==='skill:source-evidence');assert(s);const next=applyOptimizer(r,'Kubernetes required',s.id,a.hash);const skills=next.resume.sections.find(s=>s.type==='skills').content.items;assert(skills.includes('SQL'));assert(!skills.includes('Kubernetes'));assert(next.analysis.score>a.analysis.score);
+ }
+});
