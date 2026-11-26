@@ -44,6 +44,11 @@ function proposals(resume,jd,before){
   const seen=new Set(),unique=(e.bullets||[]).filter(b=>{const k=key(b);if(seen.has(k))return false;seen.add(k);return true});
   if(unique.length!==e.bullets.length)add('dedupe:'+s.id+':'+e.id,'Remove identical repeated bullets','Only duplicate text within this entry is removed.',r=>{r.sections.find(x=>x.id===s.id).content.entries.find(x=>x.id===e.id).bullets=unique},e.bullets.join('\n'),unique.join('\n'));
   (e.bullets||[]).forEach((b,i)=>{let after=b.replace(/^(?:\s*[•●▪◦‣⁃]\s*)+/u,'').replace(/[ \t]+/g,' ').trim();for(const [pattern,value]of replacements)if(pattern.test(after)){after=after.replace(pattern,value);break}if(after!==b)add('bullet:'+s.id+':'+e.id+':'+i,'Improve bullet wording','Review this rephrasing. Task, tools and numbers remain from your bullet.',r=>{r.sections.find(x=>x.id===s.id).content.entries.find(x=>x.id===e.id).bullets[i]=after},b,after)});
+  (e.bullets||[]).forEach((b,i)=>{
+   const parts=b.split(/(?<=[.!?])\s+(?=(?:Design|Develop|Deliver|Engage|Support|Build|Built|Implement|Create|Analyse|Analyze|Collaborate|Manage|Automate|Maintain|Document|Improve|Coordinate|Lead|Led|Test|Review|Identify|Optimise|Optimize)(?:d|ed|s)?\b)/);
+   if(parts.length<2)return;
+   add('structure-bullets:'+s.id+':'+e.id+':'+i,'Separate dense achievements into source bullets','Retains every source sentence, figure and tool; only separates the existing achievements.',r=>{r.sections.find(x=>x.id===s.id).content.entries.find(x=>x.id===e.id).bullets.splice(i,1,...parts)},b,parts.join('\n'));
+  });
  }
  const layout=getPaginatedDocumentModel(resume);
  if(!layout.fit&&layout.pageCount===2&&resume.documentSettings.resumeLength===1)add('two-pages','Fit the complete resume to two pages','No content is cut.',r=>{r.documentSettings.resumeLength=2},'1-page target','2-page target');

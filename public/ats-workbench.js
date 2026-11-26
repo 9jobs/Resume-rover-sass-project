@@ -92,7 +92,7 @@ export function atsReviewChecks(analysis){
 }
 
 export async function applyNextAtsIncrease(current,applySuggestion,{originalWord=false}={}){
- const suggestion=(current?.suggestions||[]).find(item=>Number(item.delta)>0&&/^(?:bullet:|skill:|summary$|dedupe(?::|-))/.test(item.id||'')&&(!originalWord||item.id.startsWith('bullet:')));
+ const suggestion=(current?.suggestions||[]).find(item=>Number(item.delta)>0&&/^(?:bullet:|structure-bullets:|two-pages$|skill:|summary$|dedupe(?::|-))/.test(item.id||'')&&(!originalWord||item.id.startsWith('bullet:')));
  if(!suggestion)return null;
  const response=await applySuggestion(suggestion),next=response.result||response;
  if(!next.analysis||next.analysis.score<=current.analysis.score||next.hash===current.hash)throw Error('No verified score improvement was produced. The current resume is unchanged.');
@@ -288,21 +288,21 @@ export function createAtsWorkbench({api,getState,getOwner,onSaved,onEdit}){
 
    if(!resume)throw Error('Choose or upload a resume first.');
 
-   if(action==='improve-all'){
-
-    await loadSourcePreview();await analyse(false);if(!active())return;reviewing=true;message='Analysis complete. Original content and formatting are unchanged. Review suggestions below before applying any wording edit.';
-   }
-
-
-   if(action==='increase-ats'){
+   if(action==='improve-all'||action==='increase-ats'){
+    if(action==='improve-all')await loadSourcePreview();
     await analyse(false);if(!active())return;reviewing=true;
-    if(uploadedSource&&!sourceLayout&&!/\.docx$/i.test(uploadedSource.current.name)){message='Select a template or a fitted page layout to apply supported improvements to a copy. Your original PDF remains unchanged.';return}
-    const old=clone(resume),version=analysisRevision,source=uploadedSource,native=!!uploadedSource&&!sourceLayout;
+    const old=clone(resume),version=analysisRevision,source=uploadedSource,native=!!uploadedSource&&!sourceLayout&&/\.docx$/i.test(uploadedSource.current.name);
     const improvement=await applyNextAtsIncrease(result,suggestion=>api(native?'/api/ats-source/apply':'/api/ats-optimizer/apply','POST',{resume,jd,owner,expectedHash:result.hash,suggestionId:suggestion.id,...(native?{file:source.current,expectedFileHash:source.hash,expectedPages:source.pages}:{})}),{originalWord:native});
     if(!active()||version!==analysisRevision||uploadedSource!==source)return;
     if(!improvement){message='No further source-supported automatic score increase is available. Review the remaining checks below; add only genuine work details. Repeated clicks do not add artificial points.';return}
+    if(!native&&!improvement.result.fit&&improvement.result.pages===2&&Number(improvement.result.resume.documentSettings.resumeLength)===1){
+     const full=clone(improvement.result.resume);full.documentSettings.resumeLength=2;
+     const checked=await api('/api/ats-optimizer/analyse','POST',{resume:full,jd,owner});if(!active()||version!==analysisRevision||uploadedSource!==source)return;
+     if(checked.analysis.score>improvement.before){improvement.result=checked;improvement.after=checked.analysis.score}
+    }
+    if(!native&&(!improvement.result.fit||!improvement.result.integrity.complete)){message='This improvement needs more page space. Choose a fitted page layout before applying; your current resume is unchanged.';return}
     const {response}=improvement;
-    if(native){if(source.afterUrl&&source.afterUrl!==source.beforeUrl)URL.revokeObjectURL(source.afterUrl);source.current=response.file;source.afterUrl=URL.createObjectURL(pdfBlob(response.preview.data));source.pages=response.preview.pages;source.hash=response.hash;source.edits.push(response.appliedText)}else{history.push(old);history=history.slice(-10);previousBlocks=oldBlocks}
+    if(native){if(source.afterUrl&&source.afterUrl!==source.beforeUrl)URL.revokeObjectURL(source.afterUrl);source.current=response.file;source.afterUrl=URL.createObjectURL(pdfBlob(response.preview.data));source.pages=response.preview.pages;source.hash=response.hash;source.edits.push(response.appliedText)}else{history.push(old);history=history.slice(-10);previousBlocks=oldBlocks;if(source&&!sourceLayout)sourceLayout={baseResume:clone(old),pages:Number(improvement.result.resume.documentSettings.resumeLength)}}
     result=improvement.result;resume=result.resume;stale=false;appliedChanges.push({label:improvement.suggestion.label,before:improvement.before,after:improvement.after});message='Applied '+improvement.suggestion.label+'. Recalculated local score: '+improvement.before+' → '+improvement.after+'. Click Increase ATS again to check the next supported improvement.';
    }
    if(action==='source-retry'){await loadSourcePreview();if(!result)await analyse(false);message=uploadedSource?.previewError?'Preview could not be fully loaded. See the error and retry option below.':'Original preview is ready.';return}
