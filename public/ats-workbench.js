@@ -127,7 +127,7 @@ export function createAtsWorkbench({api,getState,getOwner,onSaved,onEdit}){
 
  function active(){return owner===getOwner()&&user===getState()?.user?.id}
 
- async function mount(container){host=container;if(!active())open(docs()[0]||null);render();if(uploadedSource&&!uploadedSource.beforeUrl)await task(async()=>{const version=analysisRevision;await loadSourcePreview();if(version===analysisRevision)await analyse(false)});else if(resume&&!result)await analyse()}
+ async function mount(container){host=container;if(!active())open(docs()[0]||null);render();if(uploadedSource&&!uploadedSource.beforeUrl)await task(async()=>{const version=analysisRevision;await loadSourcePreview();if(version===analysisRevision){await analyse(false);if(active()&&version===analysisRevision&&!sourceLayout&&!uploadedSource.edits.length)await improveCurrent([],{analyseFirst:false})}});else if(resume&&!result)await analyse()}
 
  function button(action,label,extra=''){return '<button type="button" data-opt="'+action+'" '+extra+(busy?' disabled':'')+'>'+label+'</button>'}
 
@@ -262,7 +262,7 @@ export function createAtsWorkbench({api,getState,getOwner,onSaved,onEdit}){
 
    const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result).split(',')[1]);r.onerror=()=>reject(Error('Unable to read file'));r.readAsDataURL(file)});
 
-   const r=await api('/api/resume-workflow/import','POST',{file:{name:file.name,data}});if(!active()||uploadRevision!==analysisRevision)return;resume=recoverImportedSkills(r.resume,{restoreSource:true});selected=null;title=file.name.replace(/\.(pdf|docx|txt)$/i,'');sourceName=file.name;originalResume=null;beforeResult=null;appliedChanges=[];skipped.clear();history=[];if(/\.(pdf|docx)$/i.test(file.name)){uploadedSource={original:{name:file.name,data},current:{name:file.name,data},edits:[]};message='Preparing the original file preview without changing its formatting.';const status=host?.querySelector('.ats-status');if(status)status.textContent=message;await loadSourcePreview()}await analyse(false);
+   const r=await api('/api/resume-workflow/import','POST',{file:{name:file.name,data}});if(!active()||uploadRevision!==analysisRevision)return;resume=recoverImportedSkills(r.resume,{restoreSource:true});selected=null;title=file.name.replace(/\.(pdf|docx|txt)$/i,'');sourceName=file.name;originalResume=null;beforeResult=null;appliedChanges=[];skipped.clear();history=[];if(/\.(pdf|docx)$/i.test(file.name)){uploadedSource={original:{name:file.name,data},current:{name:file.name,data},edits:[]};message='Preparing the original file preview without changing its formatting.';const status=host?.querySelector('.ats-status');if(status)status.textContent=message;await loadSourcePreview()}await analyse(false);if(active()&&uploadRevision===analysisRevision)await improveCurrent([],{analyseFirst:false});
 
   })}
 
@@ -271,6 +271,22 @@ export function createAtsWorkbench({api,getState,getOwner,onSaved,onEdit}){
  async function task(fn){if(busy)return;const generation=taskGeneration;busy=true;render();try{await fn()}catch(e){if(generation===taskGeneration&&active())message=e.message}finally{if(generation===taskGeneration){busy=false;if(active())render()}}}
 
  async function analyse(wrap=true){const work=async()=>{if(!resume)throw Error('Select or upload a resume first.');message='Checking structure, wording, existing facts and tracked job keywords…';const status=host?.querySelector('.ats-status');if(status)status.textContent=message;const requestedRevision=analysisRevision,requestedJD=jd;let r=await api('/api/ats-optimizer/analyse','POST',{resume:clone(resume),jd:requestedJD,owner});if(!active()||requestedRevision!==analysisRevision)return;if(!uploadedSource&&!r.fit&&explicitPageTarget===1){const full=clone(resume);full.documentSettings.resumeLength=2;full.documentSettings.fullContentFit=false;r=await api('/api/ats-optimizer/analyse','POST',{resume:full,jd:requestedJD,owner});if(!active()||requestedRevision!==analysisRevision)return;explicitPageTarget=2;}if(!uploadedSource&&!r.fit&&explicitPageTarget!==1&&r.pages===2&&Number(resume.documentSettings.resumeLength)===1){const full=clone(resume);full.documentSettings.resumeLength=2;r=await api('/api/ats-optimizer/analyse','POST',{resume:full,jd:requestedJD,owner});if(!active()||requestedRevision!==analysisRevision)return;}if(!originalResume)originalResume=clone(r.resume);if(!beforeResult){const baseline=JSON.stringify(originalResume)===JSON.stringify(r.resume)?r:await api('/api/ats-optimizer/analyse','POST',{resume:clone(originalResume),jd:requestedJD,owner});if(!active()||requestedRevision!==analysisRevision)return;beforeResult=clone(baseline)}result=r;resume=r.resume;stale=false;message='Resume checked. Click Improve ATS to review supported improvements. Missing qualifications are never invented.'};if(wrap)return task(work);return work()}
+
+ async function improveCurrent(oldBlocks=[],{analyseFirst=true}={}){
+    if(analyseFirst)await analyse(false);if(!active())return;reviewing=true;
+    const old=clone(resume),version=analysisRevision,source=uploadedSource;
+    const improvement=await applyNextAtsIncrease(result,suggestion=>api('/api/ats-optimizer/apply','POST',{resume,jd,owner,expectedHash:result.hash,suggestionId:suggestion.id}));
+    if(!active()||version!==analysisRevision||uploadedSource!==source)return;
+    if(!improvement){message='No further source-supported automatic score increase is available. Review the remaining checks below; add only genuine work details. Repeated clicks do not add artificial points.';return}
+    if(!improvement.result.fit&&improvement.result.pages===2&&Number(improvement.result.resume.documentSettings.resumeLength)===1){
+     const full=clone(improvement.result.resume);full.documentSettings.resumeLength=2;
+     const checked=await api('/api/ats-optimizer/analyse','POST',{resume:full,jd,owner});if(!active()||version!==analysisRevision||uploadedSource!==source)return;
+     if(checked.analysis.score>improvement.before){improvement.result=checked;improvement.after=checked.analysis.score}
+    }
+    if(!improvement.result.fit||!improvement.result.integrity.complete){message='This improvement needs more page space. Choose a fitted page layout before applying; your current resume is unchanged.';return}
+    history.push(old);history=history.slice(-10);previousBlocks=oldBlocks;if(source&&!sourceLayout)sourceLayout={baseResume:clone(old),pages:Number(improvement.result.resume.documentSettings.resumeLength)};
+    result=improvement.result;resume=result.resume;stale=false;appliedChanges.push({label:improvement.suggestion.label,before:improvement.before,after:improvement.after});message='Applied '+improvement.suggestion.label+'. Recalculated local score: '+improvement.before+' → '+improvement.after+'. Click Increase ATS again to check the next supported improvement.';
+ }
 
  async function click(e){const el=e.target.closest('[data-opt]');if(!el||busy)return;e.preventDefault();const action=el.dataset.opt;if(action==='analyse'){clearTimeout(analysisTimer);return analyse()}if(action==='skip'){const q=result?.questions[Number(el.dataset.index)];if(q)skipped.add(q.term);message='Keyword skipped. The calculated score is unchanged.';render();return}if(action==='show-skipped'){skipped.clear();render();return}
 
@@ -288,23 +304,7 @@ export function createAtsWorkbench({api,getState,getOwner,onSaved,onEdit}){
 
    if(!resume)throw Error('Choose or upload a resume first.');
 
-   if(action==='improve-all'||action==='increase-ats'){
-    if(action==='improve-all')await loadSourcePreview();
-    await analyse(false);if(!active())return;reviewing=true;
-    const old=clone(resume),version=analysisRevision,source=uploadedSource,native=!!uploadedSource&&!sourceLayout&&/\.docx$/i.test(uploadedSource.current.name);
-    const improvement=await applyNextAtsIncrease(result,suggestion=>api(native?'/api/ats-source/apply':'/api/ats-optimizer/apply','POST',{resume,jd,owner,expectedHash:result.hash,suggestionId:suggestion.id,...(native?{file:source.current,expectedFileHash:source.hash,expectedPages:source.pages}:{})}),{originalWord:native});
-    if(!active()||version!==analysisRevision||uploadedSource!==source)return;
-    if(!improvement){message='No further source-supported automatic score increase is available. Review the remaining checks below; add only genuine work details. Repeated clicks do not add artificial points.';return}
-    if(!native&&!improvement.result.fit&&improvement.result.pages===2&&Number(improvement.result.resume.documentSettings.resumeLength)===1){
-     const full=clone(improvement.result.resume);full.documentSettings.resumeLength=2;
-     const checked=await api('/api/ats-optimizer/analyse','POST',{resume:full,jd,owner});if(!active()||version!==analysisRevision||uploadedSource!==source)return;
-     if(checked.analysis.score>improvement.before){improvement.result=checked;improvement.after=checked.analysis.score}
-    }
-    if(!native&&(!improvement.result.fit||!improvement.result.integrity.complete)){message='This improvement needs more page space. Choose a fitted page layout before applying; your current resume is unchanged.';return}
-    const {response}=improvement;
-    if(native){if(source.afterUrl&&source.afterUrl!==source.beforeUrl)URL.revokeObjectURL(source.afterUrl);source.current=response.file;source.afterUrl=URL.createObjectURL(pdfBlob(response.preview.data));source.pages=response.preview.pages;source.hash=response.hash;source.edits.push(response.appliedText)}else{history.push(old);history=history.slice(-10);previousBlocks=oldBlocks;if(source&&!sourceLayout)sourceLayout={baseResume:clone(old),pages:Number(improvement.result.resume.documentSettings.resumeLength)}}
-    result=improvement.result;resume=result.resume;stale=false;appliedChanges.push({label:improvement.suggestion.label,before:improvement.before,after:improvement.after});message='Applied '+improvement.suggestion.label+'. Recalculated local score: '+improvement.before+' → '+improvement.after+'. Click Increase ATS again to check the next supported improvement.';
-   }
+   if(action==='improve-all'||action==='increase-ats'){if(action==='improve-all')await loadSourcePreview();await improveCurrent(oldBlocks);}
    if(action==='source-retry'){await loadSourcePreview();if(!result)await analyse(false);message=uploadedSource?.previewError?'Preview could not be fully loaded. See the error and retry option below.':'Original preview is ready.';return}
    if(action==='source-apply'){
     if(!uploadedSource||!result||stale)throw Error('Review the current uploaded Word resume first.');const suggestion=result.suggestions[Number(el.dataset.index)];if(!suggestion)throw Error('Suggestion no longer applies.');const source=uploadedSource,version=analysisRevision;const response=await api('/api/ats-source/apply','POST',{resume,jd,owner,expectedHash:result.hash,suggestionId:suggestion.id,file:uploadedSource.current,expectedFileHash:uploadedSource.hash,expectedPages:uploadedSource.pages});if(!active()||version!==analysisRevision||uploadedSource!==source)return;

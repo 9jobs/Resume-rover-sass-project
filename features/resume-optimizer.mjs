@@ -32,7 +32,11 @@ function score(resume,jd){
 }
 function proposals(resume,jd,before){
  const out=[];
- function add(id,label,description,change,oldText,newText){if(out.length>=24)return;const next=structuredClone(resume);change(next);if(JSON.stringify(next)===JSON.stringify(resume))return;const after=score(next,jd);out.push({id,label,description,beforeText:oldText,afterText:newText,beforeScore:before.score,afterScore:after.score,delta:after.score-before.score,next})}
+ function add(id,label,description,change,oldText,newText){if(out.length>=24)return;const next=structuredClone(resume);change(next);if(JSON.stringify(next)===JSON.stringify(resume))return;
+  // Separating dense text adds real paragraph space. Score the complete fitted
+  // copy, rather than cancelling its wording gains with an obsolete one-page cap.
+  if(id.startsWith('structure-bullets:')&&Number(next.documentSettings.resumeLength)===1){const layout=getPaginatedDocumentModel(next);if(!layout.fit&&layout.pageCount===2)next.documentSettings.resumeLength=2}
+  const after=score(next,jd);out.push({id,label,description,beforeText:oldText,afterText:newText,beforeScore:before.score,afterScore:after.score,delta:after.score-before.score,next})}
  const skills=resume.sections.find(s=>s.type==='skills'&&s.visible!==false);
  if(skills){const values=[...(skills.content.items||[]),...(skills.content.categories||[]).flatMap(c=>c.items||[])],seen=new Set(),unique=values.filter(v=>{const k=key(v);if(seen.has(k))return false;seen.add(k);return true});
  if(unique.length!==values.length)add('dedupe-skills','Remove duplicate skills','Keeps existing skills once; no skills invented.',r=>{const s=r.sections.find(s=>s.id===skills.id),seen=new Set(),filter=a=>(a||[]).filter(v=>{const k=key(v);if(seen.has(k))return false;seen.add(k);return true});s.content.items=filter(s.content.items);for(const c of s.content.categories||[])c.items=filter(c.items)},values.join(', '),unique.join(', '))}
@@ -40,6 +44,7 @@ function proposals(resume,jd,before){
  if(!summary?.content.text?.trim()){const e=resume.sections.filter(s=>s.visible!==false&&['experience','education','projects'].includes(s.type)).flatMap(s=>s.content.entries||[])[0],text=e?[e.title,e.organization].filter(Boolean).join(' · ')+(e.bullets?.[0]?' — '+e.bullets[0]:''):'';
  if(text&&text.length<=500)add('summary','Add a summary from existing facts','Review this source extract. No years or achievements inferred.',r=>{let s=r.sections.find(s=>s.type==='summary');if(!s){s={id:randomUUID(),type:'summary',title:'Professional Summary',order:0,visible:true,contentType:'paragraph',content:{text:''}};r.sections.unshift(s)}s.content.text=text;s.visible=true},'(No summary)',text)}
  const replacements=[[/^helped with\s+/i,'Assisted with '],[/^worked on\s+/i,'Contributed to '],[/^responsible for managing\s+/i,'Managed '],[/^responsible for coordinating\s+/i,'Coordinated '],[/^responsible for maintaining\s+/i,'Maintained '],[/^responsible for preparing\s+/i,'Prepared '],[/^responsible for supporting\s+/i,'Supported ']];
+ const denseEdits=[];
  for(const s of resume.sections.filter(s=>s.visible!==false&&['experience','projects'].includes(s.type)))for(const e of s.content.entries||[]){
   const seen=new Set(),unique=(e.bullets||[]).filter(b=>{const k=key(b);if(seen.has(k))return false;seen.add(k);return true});
   if(unique.length!==e.bullets.length)add('dedupe:'+s.id+':'+e.id,'Remove identical repeated bullets','Only duplicate text within this entry is removed.',r=>{r.sections.find(x=>x.id===s.id).content.entries.find(x=>x.id===e.id).bullets=unique},e.bullets.join('\n'),unique.join('\n'));
@@ -47,9 +52,13 @@ function proposals(resume,jd,before){
   (e.bullets||[]).forEach((b,i)=>{
    const parts=b.split(/(?<=[.!?])\s+(?=(?:Design|Develop|Deliver|Engage|Support|Build|Built|Implement|Create|Analyse|Analyze|Collaborate|Manage|Automate|Maintain|Document|Improve|Coordinate|Lead|Led|Test|Review|Identify|Optimise|Optimize)(?:d|ed|s)?\b)/);
    if(parts.length<2)return;
+   denseEdits.push({section:s.id,entry:e.id,index:i,parts,before:b});
    add('structure-bullets:'+s.id+':'+e.id+':'+i,'Separate dense achievements into source bullets','Retains every source sentence, figure and tool; only separates the existing achievements.',r=>{r.sections.find(x=>x.id===s.id).content.entries.find(x=>x.id===e.id).bullets.splice(i,1,...parts)},b,parts.join('\n'));
   });
  }
+ if(denseEdits.length>1){if(out.length>=24)out.pop();add('structure-bullets:all','Separate all dense source achievements','Organises existing sentences together so aggregate wording checks can be recalculated. No source facts are added or removed.',r=>{
+  for(const edit of [...denseEdits].reverse())r.sections.find(s=>s.id===edit.section).content.entries.find(e=>e.id===edit.entry).bullets.splice(edit.index,1,...edit.parts);
+ },denseEdits.map(e=>e.before).join('\n'),denseEdits.flatMap(e=>e.parts).join('\n'));}
  const layout=getPaginatedDocumentModel(resume);
  if(!layout.fit&&layout.pageCount===2&&resume.documentSettings.resumeLength===1)add('two-pages','Fit the complete resume to two pages','No content is cut.',r=>{r.documentSettings.resumeLength=2},'1-page target','2-page target');
  const context=resume.sections.filter(s=>s.visible!==false&&['experience','projects'].includes(s.type)).flatMap(s=>(s.content.entries||[]).flatMap(e=>e.bullets||[])),existing=resume.sections.filter(s=>s.type==='skills').flatMap(s=>strings(s.content));
