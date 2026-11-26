@@ -24,6 +24,8 @@
     border-radius: 11px;
   }
   .rover-workspace-embed .old-builder .preview-wrap { position: static; }
+  .rover-workspace-embed .preview-actions .rover-font-select { width:auto; max-width:180px; margin:0; padding:6px 10px; min-height:32px; }
+  .rover-workspace-embed .resume-paper, .rover-workspace-embed .resume-paper * { font-family:var(--resume-font-family, Arial, sans-serif)!important; }
   .rover-workspace-embed .old-builder .paged-preview-shell {
     max-height: none;
     overflow: visible;

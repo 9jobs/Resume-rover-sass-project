@@ -237,7 +237,8 @@ export async function handleWorkspaceRequest(req,res){
    const native=await import('./engine/lib/ai-resume.js');
    const model=native.getPaginatedDocumentModel(resume);
    if(!model.fit)return json(res,422,{error:'Content exceeds your page target. Review Fit Suggestions or choose two pages.'});
-   const bytes=await renderLocalPdf(native.buildResumeHtmlDocument(resume));
+   const {buildResumeHtmlDocument:renderRoverHtml}=await import('./adapters/rover-font-format.js');
+   const bytes=await renderLocalPdf(renderRoverHtml(resume));
    res.setHeader('Content-Type','application/pdf');return res.end(bytes);
   }
   if(hosted){

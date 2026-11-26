@@ -10,8 +10,6 @@ import {
   analyzeResume,
   applyFitSuggestions,
   buildAiDiff,
-  buildDocxFromCanonical,
-  buildResumeHtmlDocument,
   buildTxtExport,
   canBypassPremiumGate,
   canonicalToLegacy,
@@ -35,6 +33,7 @@ import {
 import { cleanResumeImportText, MAX_IMPORT_BYTES, pdfTextItemsToLines } from "@/lib/resume-import";
 import { tailorResumeToJobDescription, extractKeywordsFromJd } from "@/lib/jd-optimizer";
 import { applyHarshibarTemplate, isHarshibar, buildHarshibarLatex } from "@/lib/harshibar-template";
+import {buildDocxFromCanonical,buildResumeHtmlDocument,roverFontStack,ROVER_FONTS} from '../../adapters/rover-font-format.js';
 
 const STORAGE_KEY = "ai_resume_maker_v2";
 const LEGACY_STORAGE_KEYS = ["ai_resume_maker_v1"];
@@ -494,7 +493,7 @@ export function ResumeBuilder({ initialPremium = false }) {
 
   async function downloadDocx() {
     requirePremium(async () => {
-      const blob = buildDocxFromCanonical(workingResume);
+      const blob = await buildDocxFromCanonical(workingResume);
       try {
         const formData = new FormData();
         formData.append("file", new File([blob], "resume.docx", { type: blob.type }));
@@ -796,6 +795,9 @@ export function ResumeBuilder({ initialPremium = false }) {
                 </span>
               </div>
               <div className="actions preview-actions">
+                <select className="rover-font-select" aria-label="Resume font" value={workingResume.documentSettings.fontFamily || "Arial"} onChange={event=>updateResume(updateDocumentSettings(workingResume,{fontFamily:event.target.value}))}>
+                  {ROVER_FONTS.map(font=><option key={font} value={font}>{font}</option>)}
+                </select>
                 <button className="primary-btn small" type="button" onClick={enhanceResume} disabled={enhanceLoading}>{enhanceLoading ? "Enhancing..." : "Enhance Resume"}</button>
                 <button className="ghost-btn small" type="button" onClick={downloadDocx}>Download Word (.docx)</button>
                 {isHarshibar(workingResume) && <button className="ghost-btn small" type="button" onClick={downloadLatex}>Download LaTeX</button>}
@@ -823,7 +825,7 @@ export function ResumeBuilder({ initialPremium = false }) {
               {isHarshibar(workingResume) ? (
                 <HarshibarPreview resume={workingResume} pageCount={pageModel.pageCount} />
               ) : pageModel.pages.map((page, pageIndex) => (
-                <article className="paper resume-paper paged-paper" key={`page-${pageIndex}`} style={resumePaperStyle(pageModel)}>
+                <article className="paper resume-paper paged-paper" key={`page-${pageIndex}`} style={{...resumePaperStyle(pageModel),"--resume-font-family":workingResume.documentSettings.fontFamily?roverFontStack(workingResume):"Arial, sans-serif"}}>
                   <span className="page-chip">Page {pageIndex + 1}</span>
                   {page.map((item, itemIndex) => {
                     if (item.type === "entry-meta" && page[itemIndex - 1]?.type === "entry-title" && page[itemIndex - 1]?.metaLine === item.text) {
