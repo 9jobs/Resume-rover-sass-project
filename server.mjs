@@ -236,10 +236,11 @@ export async function handleWorkspaceRequest(req,res){
    const {resume}=await body(req);
    const native=await import('./engine/lib/ai-resume.js');
    const model=native.getPaginatedDocumentModel(resume);
-   if(!model.fit)return json(res,422,{error:'Content exceeds your page target. Review Fit Suggestions or choose two pages.'});
+   // Export the same complete pages shown in the native preview, even when they
+   // exceed the preferred page count. Never shorten content to enable download.
    const {buildResumeHtmlDocument:renderRoverHtml}=await import('./adapters/rover-font-format.js');
    const bytes=await renderLocalPdf(renderRoverHtml(resume));
-   res.setHeader('Content-Type','application/pdf');return res.end(bytes);
+   res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','attachment; filename="resume.pdf"');res.setHeader('X-Resume-Pages',String(model.pageCount));return res.end(bytes);
   }
   if(hosted){
    if(req.method!=='POST')return json(res,405,{error:'POST required'});

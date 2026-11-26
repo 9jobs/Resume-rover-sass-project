@@ -34,6 +34,7 @@ import { cleanResumeImportText, MAX_IMPORT_BYTES, pdfTextItemsToLines } from "@/
 import { tailorResumeToJobDescription, extractKeywordsFromJd } from "@/lib/jd-optimizer";
 import { applyHarshibarTemplate, isHarshibar, buildHarshibarLatex } from "@/lib/harshibar-template";
 import {buildDocxFromCanonical,buildResumeHtmlDocument,roverFontStack,ROVER_FONTS} from '../../adapters/rover-font-format.js';
+import {excludeImportedReferences} from '../../adapters/rover-import-sections.js';
 
 const STORAGE_KEY = "ai_resume_maker_v2";
 const LEGACY_STORAGE_KEYS = ["ai_resume_maker_v1"];
@@ -116,7 +117,7 @@ export function ResumeBuilder({ initialPremium = false }) {
   }, [fitPreview]);
 
   function updateResume(next) {
-    setWorkingResume(ensureCanonicalResume(next));
+    setWorkingResume(excludeImportedReferences(ensureCanonicalResume(next)));
   }
 
   function requireDocumentSettings() {
@@ -278,7 +279,7 @@ export function ResumeBuilder({ initialPremium = false }) {
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Resume conversion failed. Your current resume is unchanged.");
       if (revision !== importRevisionRef.current) throw new Error("Import inputs changed during conversion. Convert again to use your latest text.");
       if (!payload.resume?.profile || !Array.isArray(payload.resume.sections) || !payload.resume.sections.length) throw new Error("The import response was incomplete. Your current resume is unchanged.");
-      const canonical = ensureCanonicalResume(payload.resume);
+      const canonical = excludeImportedReferences(ensureCanonicalResume({...payload.resume,rawImport:payload.resume.rawImport||{}}));
       canonical.rawImport = { ...canonical.rawImport, fileName: uploadInfo?.name || "", fileType: uploadInfo?.fileType || "text/plain" };
       const { template, ...preservedSettings } = workingResume.documentSettings || {};
       canonical.documentSettings = { ...preservedSettings, settingsConfirmed: true };
@@ -550,108 +551,7 @@ export function ResumeBuilder({ initialPremium = false }) {
           setMessage("PDF export downloaded.");
           return;
         }
-        const isHarshibarTemplate = typeof isHarshibar === "function" ? isHarshibar(workingResume) : workingResume?.template === "harshibar";
-        if (isHarshibarTemplate) throw new Error(payload?.error || "Template PDF export failed. Please retry.");
-        console.warn("Falling back to client PDF export:", payload?.details || payload?.error || "PDF generation failed.");
-
-        const { jsPDF } = await import("jspdf");
-        const doc = new jsPDF({
-          unit: "pt",
-          format: workingResume.documentSettings.pageSize === "US Letter" ? "letter" : "a4",
-        });
-        const preset = pageModel.typography;
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const margin = mmToPt(preset.marginMm);
-
-        pageModel.pages.forEach((page, pageIndex) => {
-          if (pageIndex > 0) doc.addPage();
-          let y = margin + preset.bodySize * 0.55;
-          page.forEach((item, itemIndex) => {
-            const size = item.type === "name" ? preset.nameSize : item.type === "heading" ? preset.headingSize : preset.bodySize;
-            const lineHeight = size * preset.lineHeight;
-            doc.setFont("helvetica", item.type === "entry-title" || item.type === "heading" || item.type === "name" ? "bold" : "normal");
-            doc.setFontSize(size);
-            if (item.type === "heading") {
-              doc.text(formatResumeHeadingLabel(item.text), margin, y);
-              y += size * 0.38;
-              doc.setLineWidth(0.3);
-              doc.line(margin, y, pageWidth - margin, y);
-              y += lineHeight + size * item.after * 0.18;
-              return;
-            }
-            if (item.type === "name") {
-              doc.text(item.text, pageWidth / 2, y, { align: "center" });
-              y += lineHeight + size * item.after * 0.18;
-              return;
-            }
-            if (item.type === "contact") {
-              const consumedHeight = drawPdfContactBlock(doc, item, pageWidth, margin, y, lineHeight);
-              y += consumedHeight + size * item.after * 0.18;
-              return;
-            }
-            if (item.type === "spacer") {
-              y += Math.max(6, size * Math.max(item.after || 0.5, 0.5) * 0.8);
-              return;
-            }
-            if (item.type === "entry-title") {
-              const previousItem = page[itemIndex - 1];
-              if (item.metaLine && previousItem?.type === "entry-title" && previousItem.metaLine === item.metaLine) {
-                return;
-              }
-              const { left, right } = splitEntryTitle(item.text);
-              const combinedLeft = [left, item.metaLine].filter(Boolean).join(" | ");
-              const rightWidth = right ? doc.getTextWidth(right) : 0;
-              const firstLineWidth = Math.max(90, pageWidth - margin * 2 - rightWidth - (preset.entryDateGapPt || 14));
-              const titleLines = doc.splitTextToSize(combinedLeft || left, firstLineWidth);
-              const [firstLine, ...restLines] = titleLines;
-              doc.text(firstLine || combinedLeft || left, margin, y);
-              if (right) doc.text(right, pageWidth - margin, y, { align: "right" });
-              y += lineHeight;
-              restLines.forEach((line) => {
-                doc.text(line, margin, y);
-                y += lineHeight;
-              });
-              y += size * item.after * 0.18;
-              return;
-            }
-            if (item.type === "entry-meta" && page[itemIndex - 1]?.type === "entry-title" && page[itemIndex - 1]?.metaLine === item.text) {
-              return;
-            }
-            if (item.type === "bullet") {
-              const bulletX = margin + (pageModel.textAlignment ? 0 : 2);
-              const bulletIndent = preset.bulletIndentPt || 15;
-              const textX = margin + bulletIndent;
-              const lines = item.lines?.length ? item.lines : doc.splitTextToSize(item.text, pageWidth - margin * 2 - bulletIndent);
-              if (lines.length) {
-                doc.text("•", bulletX, y);
-                drawPdfParagraph(doc, lines, textX, y, pageWidth - margin - textX, size * 1.15, { justify: Boolean(pageModel.textAlignment) });
-                y += Math.max(0, lines.length - 1) * size * 1.15;
-              }
-              y += size * 1.15 + size * item.after * 0.28;
-              return;
-            }
-            const printableWidth = pageWidth - margin * 2;
-            const lines = item.lines?.length ? item.lines : doc.splitTextToSize(item.text, printableWidth);
-            drawPdfParagraph(doc, lines, margin, y, printableWidth, lineHeight, { justify: item.type === "paragraph" });
-            y += lines.length * lineHeight + size * item.after * 0.18;
-          });
-          if (y > pageHeight - margin + 6) {
-            throw new Error("PDF layout exceeded the printable page height.");
-          }
-        });
-
-        const pdfBlob = doc.output("blob");
-        const bytes = await pdfBlob.arrayBuffer();
-        const legacyValidation = await validatePdfBytes(bytes, Math.max(workingResume.documentSettings.resumeLength, pageModel.pageCount), expectedVisibleStrings(workingResume));
-        if (!legacyValidation.ok) {
-          console.warn("PDF validation warnings:", legacyValidation.errors);
-          downloadFile(pdfBlob, getDownloadBaseName(workingResume, "pdf"));
-          setMessage(legacyValidation.errors[0] ? `PDF downloaded with warning: ${legacyValidation.errors[0]}` : "PDF export downloaded.");
-          return;
-        }
-        downloadFile(pdfBlob, getDownloadBaseName(workingResume, "pdf"));
-        setMessage("PDF export downloaded.");
+        throw new Error(payload?.error || "PDF generation failed. Please retry.");
       } catch (error) {
         setMessage(error.message || "PDF generation failed.");
       } finally {
@@ -798,8 +698,8 @@ export function ResumeBuilder({ initialPremium = false }) {
                 <select className="rover-font-select" aria-label="Resume font" value={workingResume.documentSettings.fontFamily || "Arial"} onChange={event=>updateResume(updateDocumentSettings(workingResume,{fontFamily:event.target.value}))}>
                   {ROVER_FONTS.map(font=><option key={font} value={font}>{font}</option>)}
                 </select>
-                <button className="primary-btn small" type="button" onClick={enhanceResume} disabled={enhanceLoading}>{enhanceLoading ? "Enhancing..." : "Enhance Resume"}</button>
                 <button className="ghost-btn small" type="button" onClick={downloadDocx}>Download Word (.docx)</button>
+                <button className="ghost-btn small" type="button" onClick={downloadPdf} disabled={pdfDownloading}>{pdfDownloading ? "Downloading PDF..." : "Download PDF"}</button>
                 {isHarshibar(workingResume) && <button className="ghost-btn small" type="button" onClick={downloadLatex}>Download LaTeX</button>}
               </div>
             </div>
@@ -1408,7 +1308,7 @@ function loadInitialResume() {
       LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
     } catch {}
   }
-  return ensureCanonicalResume(createDefaultWorkingResume());
+  return updateDocumentSettings(createDefaultWorkingResume(), { fontFamily: "Arial" });
 }
 
 async function readPdf(file) {
